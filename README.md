@@ -9,6 +9,7 @@ Basic Use
 ---------
 
 ```
+$ cat mysvc1.py
 import WebF
 
 class Func1:
@@ -35,9 +36,21 @@ class Func1:
 def main():
     r = WebF.WebF({})
     r.registerFunction("helloWorld", Func1())
+    print "Waiting for web calls"
     r.go()
 
 main()
+
+$ python mysvc.py &
+Waiting for web calls
+
+$ curl -g 'http://localhost:7778/helloWorld?args={"startTime":"2017-01-02T19:00:06.000Z","corn":5}'
+{"type":6,"name":"chips"}
+{"type":1,"name":"fruit"}
+
+$ curl -g 'http://localhost:7778/help
+{"funcname":"helloWorld","args":{"args":[{"req":"Y","type":"datetime","name":"startTime","desc":"Starting time for snacking"},{"req":"N","type":"int","name":"maxCount","desc":"max number of snacks"}],"desc":"A function that returns something."}}
+
 ```
 
 The WebF framework has these design goals:
