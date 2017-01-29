@@ -5,8 +5,8 @@ from SocketServer import ThreadingMixIn
 
 import urllib
 import datetime
-import mson
-import json
+from mson import mson
+
 
 #  See stackoverflow.com for this.  Excellent.
 class MultiThreadedHTTPServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
@@ -15,8 +15,8 @@ class MultiThreadedHTTPServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
 
 class WebF:
     class internalHelp:
-        def __init__(self, parent):
-            self.parent = parent
+        def __init__(self, context):
+            self.parent = context['parent']
 
         def help(self):
             return {}
@@ -27,34 +27,27 @@ class WebF:
         def next(self):
             for fname in self.parent.fmap:
                 if False == fname.startswith('__'):
-                    hh = self.parent.fmap[fname]
-                    hdoc = {
-                        "funcname": fname,
-                        "args": hh.help()
-                        }
+                    (href,context) = self.parent.fmap[fname]
+                    hh = href(context)
+                    hdoc = hh.help()
+                    hdoc['funcname'] = fname
                     yield hdoc
 
         def end(self):
             pass
 
 
+
     class internalArgErr:
-        def __init__(self, parent):
-            self.parent = parent
-            self.args = {}
+        def __init__(self, argerrs):
+            self.errs = argerrs
 
         def start(self, args):
-            self.args = args
+           pass
         
         def next(self):
-            for fname in self.parent.fmap:
-                if False == fname.startswith('__'):
-                    hh = self.parent.fmap[fname]
-                    hdoc = {
-                        "funcname": fname,
-                        "args": hh.help()
-                        }
-                    yield hdoc
+            for err in self.errs:
+               yield err
 
         def end(self):
             pass
@@ -82,16 +75,48 @@ class WebF:
             return ((func, params))
         
 
+        def getArgTypeToString(self, argval):
+           ss  = argval.__class__.__name__
+           if ss == 'unicode':
+              ss = "str"
+           elif ss == 'float':           
+              ss = "double"
+           elif ss == 'Decimal':
+              ss = "decimal"
+           elif ss == 'list':
+              ss == "array"
+              
+           return ss
+
+
         def chkArgs(self, funcHelp, webArgs):
             argerrs = []
             if 'args' in funcHelp:
                 for hargs in funcHelp['args']:
                     if hargs['req'] == "Y":
                         if hargs['name'] not in webArgs:
-                            argerrs.append({
+                           argerrs.append({
                                     "errcode":1,
-                                    "desc":"req arg not found",
+                                    "msg":"req arg not found",
                                     "data":hargs['name']})
+
+                    if hargs['name'] in webArgs:
+                       # exists: but is it the right type?
+                       # any,string, int, long, double, decimal, datetime, binary, array, dict                           
+                       argval = webArgs[hargs['name']]
+                       argtype = hargs['type'];
+                       if argtype != "any":
+                          ss = self.getArgTypeToString(argval)
+                          if ss != argtype:
+                             argerrs.append({
+                                    "errcode":2,
+                                    "msg":"arg has wrong typed",
+                                    "data": {
+                                      "arg": hargs['name'],
+                                      "expected": argtype,
+                                      "found": ss
+                                      }})
+    
             return argerrs
                             
             
@@ -112,10 +137,14 @@ class WebF:
                     self.send_response(404)
 
                 else:
-                    handler = xx.fmap[func]
+                    (hname,context) = xx.fmap[func]
 
-                    args = json.loads(params['args']) if 'args' in params else {}
-                    fargs = json.loads(params['fargs']) if 'fargs' in params else {}
+                    # Construct a NEW handler instance!
+                    handler = hname(context)
+
+                    args = mson.parse(params['args'], mson.MONGO) if 'args' in params else {}
+                    fargs = mson.parse(params['fargs'], mson.MONGO) if 'fargs' in params else {}
+
                     fmt = None;  #  TBD:  default?
                     if fargs is not None:
                         if "fmt" in fargs:
@@ -123,28 +152,32 @@ class WebF:
 
                     zz = handler.help()
 
-                    argerrs = self.chkArgs(zz, args)
 
-                    if len(argerrs) > 0:
-                        handler = xx.fmap['__argErr']                        
-                                
-
-                    self.send_response(200)
+                    contentType = 'text/json'
+                    respCode = 200
 
                     jfmt = None
                     if fmt == "bson":
-                        self.send_header('Content-type', 'text/bson')
+                       contentType = 'text/bson'
                     else:
-                        self.send_header('Content-type', 'text/json')
-                        jfmt = mson.PUREJSON
+                        jfmt = mson.PURE
                         if fmt == "ejson":
-                            jfmt = mson.MONGODB
+                            jfmt = mson.MONGO
 
 
+                    argerrs = self.chkArgs(zz, args)
+
+                    if len(argerrs) > 0:
+                       #handler = xx.fmap['__argErr']                        
+                       handler = xx.internalArgErr(argerrs)
+                       respCode = 400
+
+                    self.send_response(respCode)
+                    self.send_header('Content-type', contentType)
+                       
                     hdrdoc = handler.start(args)
                     if hdrdoc != None:
-                        mson.emitDict(self.wfile, hdrdoc, jfmt)
-
+                        mson.write(self.wfile, hdrdoc, jfmt)
 
                     # TBD TBD !!!
                     #    Gotta do something rational with this!
@@ -153,16 +186,17 @@ class WebF:
                     self.end_headers()
 
                     for r in handler.next():
-                        mson.emitDict(self.wfile, r, jfmt)
+                        mson.write(self.wfile, r, jfmt)
                 
                     footerdoc = handler.end()
                     if footerdoc != None:
-                        mson.emitDict(self.wfile, hdrdoc, jfmt)
+                        mson.write(self.wfile, hdrdoc, jfmt)
 
                     ee = datetime.datetime.now()
 
                     if xx.log_handler != None:
 
+                       # TBD
                         user = self.headers.getheader('X-AVL-User')
                         if user == None:
                             user = "ANONYMOUS"
@@ -172,13 +206,13 @@ class WebF:
                         diffms = int(tdelta.microseconds/1000)
 
                         xx.log_handler({
-                                "user": user,
-                         "func": func,
-                         "params": params,
-                         "stime": ss,
-                         "etime": ee,
-                         "millis": diffms,
-                         "status": "OK"})
+                              "user": user,
+                              "func": func,
+                              "params": params,
+                              "stime": ss,
+                              "etime": ee,
+                              "millis": diffms,
+                              "status": respCode})
 
 
             except Exception, e:
@@ -187,26 +221,43 @@ class WebF:
 
 
 
-    def __init__(self, args):
+    #
+    #  wargs:
+    #  port           int      Port upon which to listen
+    #  sslPEMKeyFile  string   Path to file containing PEM to activate SSL
+    #                          (required for https access to this service)
+    #        
+    def __init__(self, wargs):
         self.fmap = {}
-        self.rargs = {}
+        self.wargs = wargs
 
         listen_addr = "localhost"
-        listen_port = 7778
+
+        listen_port = int(self.wargs['port']) if 'port' in self.wargs else 7778
+
 
         self.httpd = MultiThreadedHTTPServer((listen_addr, listen_port), WebF.HTTPHandler)
 
+        #  To run this server as https:
+        #  Make a pem with
+        #  openssl req -new -x509 -keyout server.pem -out server.pem -days 365 -nodes
+        #  Pass that PEM file as value for sslPEMKeyFile
+        if 'sslPEMKeyFile' in self.wargs:
+           import ssl   # condition import!
+           cf = self.wargs['sslPEMKeyFile']
+
+           self.httpd.socket = ssl.wrap_socket (self.httpd.socket, certfile=cf, server_side=True)
+
+
         self.log_handler = None   # optional
 
-        self.registerFunction("__help", self.internalHelp(self));
-        self.registerFunction("__argErr", self.internalArgErr(self));
-
+        self.registerFunction("__help", self.internalHelp, {"parent":self});
 
         self.httpd.parent = self
 
 
-    def registerFunction(self, name, handler):
-        self.fmap[name] = handler
+    def registerFunction(self, name, handler, context):
+        self.fmap[name] = (handler,context)
 
     def registerLogger(self, handler):
         self.log_handler = handler
