@@ -58,6 +58,7 @@ $ curl -g 'http://localhost:7778/help
 ```
 
 The WebF framework has these design goals:
+
 1. Lightweight.  WebF relies only on internal python libs and one other lib (included)
 2. Standardized handling of web service args.  All functions in WebF take a
 single arg called "args" which is a JSON string.  This permits standardization
@@ -101,12 +102,14 @@ The class must support these methods:
 * __init__:  Is passed context as argument.
 * help:  More on this later.
 * start:  Called once at the start of the web service call and is passed
-the args sent in the URL.
+the args sent in the URL.   Can optionally return a dict that will be
+sent to the client.
 * next:  Called iteratively as necessary for the function to vend units of
 content.   It is not necessary, for example, to build a giant array of 1m
 items and send it out as one thing.  next() leverages python's yield 
 operator.
-* end:  Called after iteration to next() has concluded.
+* end:  Called after iteration to next() has concluded.  Can option return
+a dict that will be sent to the client.
 
 Functions can have zero more arguments.  Unlike traditional functions,
 there are only arguments in the framework `args` and `fargs`.  The latter
@@ -137,12 +140,12 @@ Pass value = 1.0
 Pass value = 1L (long)
     foo?args={"value":{"$numberLong":"1"}}
     value will be class long in the args.  Note we pass 1 as a string
-    to prevent any int/long trunc issues along the way
+    to prevent any truncation issues along the way
 
 Pass value = 1D (decimal128)
     foo?args={"value":{"$numberDecimal":"1"}}
     value will be class Decimal in the args.  Note we pass 1 as a string
-    to prevent any int/long trunc issues along the way
+    to prevent any truncation issues along the way
 
 Pass value = date(2017-01-20)
     foo?args={"value":{"$date":"2017-01-28T21:47:46.333"}}
@@ -249,6 +252,148 @@ following dict as an argment (here filled in with representative examples):
  'func': 'helloWorld',
 }
 ```
+
+
+Context
+-------
+Context is a way to make data and resources available to functions from
+"outside" the framework.  Context is completely under control of the 
+invocation environment; thus, different functions can have different
+contexts or share one.   Context is fully read/writable; thus, functions
+can communicate back to the invocation environment.  Common resources can
+be managed via a common context if appropriate concurrency control is applied.
+
+A very common use is to set up client-side handles to databases.  Here is
+an example of a service that sets up MongoDB and makes a collection
+available to a function via the context:
+```
+import pymongo
+from pymongo import MongoClient
+
+import WebF
+
+import sys
+
+class Func1:
+    def __init__(self, context):
+        self.db = context['db']
+
+    def help(self):
+        return {"desc":"Fetch product info from DB",
+                "args":[
+                {"name":"productType", "type":"array","req":"N","desc":"fetch only products of this type(s)"}
+                ]}
+    
+    def start(self, args):
+        self.args = args
+
+    def next(self):
+        pred = {}  # Fetch all
+        if 'productType' in self.args:
+            pred = {"prodType": {"$in": self.args['productType']}}
+
+        for doc in self.db['product'].find(pred):
+            yield doc
+
+    def end(self):
+        pass
+
+
+def main(args):
+    client = MongoClient()  # various auth options here...
+    db = client['testX']
+
+    r = WebF.WebF(args)
+    r.registerFunction("getProducts", Func1, {"db": db})
+    r.go()
+
+main(sys.argv)
+```
+
+Context can carry the instance of the invoke "self."  This makes ALL the 
+resources available.   Below is a complete example of this, including
+separating the invocation environment (main and command line args),
+the real logic body (MyProgram), and the WebF framework:
+```
+import pymongo
+from pymongo import MongoClient
+
+import WebF
+
+import argparse
+import sys
+
+class Func1:
+    def __init__(self, context):
+        self.parent = context['parent']
+
+    def help(self):
+        return {"desc":"Fetch product info from DB",
+                "args":[
+                {"name":"productType", "type":"array","req":"N","desc":"fetch only products of this type(s)"}
+                ]}
+    
+    def start(self, args):
+        self.args = args
+
+    def next(self):
+        pred = {}  # Fetch all
+        if 'productType' in self.args:
+            pred = {"prodType": {"$in": self.args['productType']}}
+
+        for doc in self.parent.db['product'].find(pred):
+            doc['val'] = self.parent.fancyCalculation(5,6)
+            yield doc
+
+    def end(self):
+        pass
+
+
+class MyProgram:
+    def __init__(self, rargs):
+        self.rargs = rargs
+
+        client = MongoClient(host=self.rargs.host)
+        self.db = client['testX']
+
+        self.r = WebF.WebF({})
+
+        # Give the Func1 access to the complete parent!
+        self.r.registerFunction("getProducts", Func1, {"parent": self})
+
+    def run(self):
+        self.r.go()  # drop into loop
+
+    def fancyCalculation(self, a, b):
+        return a + b
+
+
+def main(args):
+    parser = argparse.ArgumentParser(description=
+   """A service to fetch products
+   """,
+         formatter_class=argparse.ArgumentDefaultsHelpFormatter
+   )
+
+    parser.add_argument('--host',
+                        metavar='mongoDBhost',
+                        default="mongodb://localhost:27017",
+                        help='connection string to product DB7')
+
+
+    rargs = parser.parse_args()
+
+    r = MyProgram(rargs)
+    r.run()
+
+main(sys.argv)
+
+
+
+
+```
+
+
 
 TBD:  user/password stuff
 
