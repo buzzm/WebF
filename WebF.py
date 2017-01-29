@@ -84,7 +84,7 @@ class WebF:
            elif ss == 'Decimal':
               ss = "decimal"
            elif ss == 'list':
-              ss == "array"
+              ss = "array"
               
            return ss
 
@@ -110,7 +110,7 @@ class WebF:
                           if ss != argtype:
                              argerrs.append({
                                     "errcode":2,
-                                    "msg":"arg has wrong typed",
+                                    "msg":"arg has wrong type",
                                     "data": {
                                       "arg": hargs['name'],
                                       "expected": argtype,
@@ -227,9 +227,9 @@ class WebF:
     #  sslPEMKeyFile  string   Path to file containing PEM to activate SSL
     #                          (required for https access to this service)
     #        
-    def __init__(self, wargs):
+    def __init__(self, wargs=None):
         self.fmap = {}
-        self.wargs = wargs
+        self.wargs = wargs if wargs is not None else {}
 
         listen_addr = "localhost"
 

@@ -33,7 +33,7 @@ def logF(doc):
     print doc
 
 def main():
-    r = WebF.WebF({})
+    r = WebF.WebF()
 
     r.registerFunction("helloWorld", Func1, None);
     r.registerLogger(logF)

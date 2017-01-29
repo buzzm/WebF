@@ -38,7 +38,7 @@ class Func1:
         pass
 
 def main():
-    websvc = WebF.WebF({})
+    websvc = WebF.WebF()
     websvc.registerFunction("helloWorld", Func1, context)
     print "Waiting for web calls"
     websvc.go()
@@ -76,8 +76,18 @@ the set of functions and descriptions and arguments to the caller.
 Overview
 --------
 
-WebF starts a web server on the host machine at the designated port.  This 
-is a "service."  A service can have many functions associated with it.  
+WebF starts a web server on the host machine at the designated port, by 
+default 7778
+```
+websvc = WebF.WebF()
+```
+At this time, two options are availble upon construction:
+```
+port (int)              Port upon which to listen
+sslPEMKeyFile (string)  Path to file containing server-side PEM; automatically enables SSL to permit https access to this service
+```
+
+This is a "service."  A service can have many functions associated with it.  
 A function is named by the first path component in the URL, e.g. function foo
 would be
 ```
@@ -87,7 +97,6 @@ Functions are created by binding a string name to a class (*not* the instance,
 the class; not the class name, the class!) plus "context" or variables to pass to the function class upon
 construction:
 ```
-websvc = WebF.WebF({})
 websvc.registerFunction("helloWorld", Func1, context)
 ```
 This approach differs slightly from Java servlets where typically the 
@@ -95,8 +104,8 @@ servlet is instantiated only once in the lifetime of the container and
 shared across multiple threads.  This requires special attention to not
 putting anything in class scope (without special handling) to prevent
 concurrency issues.   WebF is simpler: when the function is called, a
-new handler instance is created.  Shared material, if desired, can be
-accessed via the context.  
+new handler instance is created.  Shared material or material that must
+persist across calls, if desired, can be accessed/managed via the context.  
 
 The class must support these methods:
 * __init__:  Is passed context as argument.
@@ -112,7 +121,7 @@ operator.
 a dict that will be sent to the client.
 
 Functions can have zero more arguments.  Unlike traditional functions,
-there are only arguments in the framework `args` and `fargs`.  The latter
+there are only 2 HTTP arguments in the framework `args` and `fargs`.  The latter
 is framework arguments which we'll cover later.  `args` is simply a JSON
 string that itself carries all the "real" arguments.  This provides a 
 standard, easily externalizable format to supply arguments of any type
@@ -193,12 +202,16 @@ The help() method has a specific structure:
    ]
 }
 ```
-`type` is currently only "simple" and indicates the structure of the help
-data.  In the future, "type":"json-schema" might be used to provide very
+`type` indicates the structure of the help data; that is, what other fields
+appear in the dict and an definition for their meaning and use.
+The only `type` currently supported is `simple`.
+In the future, "type":"json-schema" might be used to provide very
 comprehensive and detailed help on arguments.
 
 argType is a string, one of the following:
-any,string, int, long, double, datetime, binary, array, dict
+```
+any, string, int, long, double, datetime, binary, array, dict
+```
 Note that the simple help format cannot dive deep into array or dict types;
 that is for json-schema or similar.   Also, the simple type does not have
 a provision to return an error upon detection of extra / superfluous args.
@@ -237,7 +250,7 @@ Logging
 -------
 If a logger is registered thusly:
 ```
-    r.registerLogger(logF)
+    websvc.registerLogger(logF)
 ```
 then function `logF` will be called upon completion each time the service is
 hit (successful or not) with the 
@@ -303,14 +316,14 @@ def main(args):
     client = MongoClient()  # various auth options here...
     db = client['testX']
 
-    r = WebF.WebF(args)
-    r.registerFunction("getProducts", Func1, {"db": db})
-    r.go()
+    websvc = WebF.WebF(args)
+    websvc.registerFunction("getProducts", Func1, {"db": db})
+    websvc.go()
 
 main(sys.argv)
 ```
 
-Context can carry the instance of the invoke "self."  This makes ALL the 
+Context can carry the instance of the invoking "self."  This makes ALL the 
 resources available.   Below is a complete example of this, including
 separating the invocation environment (main and command line args),
 the real logic body (MyProgram), and the WebF framework:
@@ -356,13 +369,13 @@ class MyProgram:
         client = MongoClient(host=self.rargs.host)
         self.db = client['testX']
 
-        self.r = WebF.WebF({})
+        self.websvc = WebF.WebF({"port":self.rargs.port})
 
         # Give the Func1 access to the complete parent!
-        self.r.registerFunction("getProducts", Func1, {"parent": self})
+        self.websvc.registerFunction("getProducts", Func1, {"parent": self})
 
     def run(self):
-        self.r.go()  # drop into loop
+        self.websvc.go()  # drop into loop
 
     def fancyCalculation(self, a, b):
         return a + b
@@ -380,6 +393,11 @@ def main(args):
                         default="mongodb://localhost:27017",
                         help='connection string to product DB7')
 
+    parser.add_argument('--port',
+                        type=int,
+                        metavar='int',
+                        default=9119,
+                        help='port upon which to listen')
 
     rargs = parser.parse_args()
 

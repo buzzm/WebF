@@ -1,38 +1,33 @@
 import pymongo
 from pymongo import MongoClient
-import datetime
 
 import WebF
 
 import sys
 
-
-#  m:p/help
-
 class Func1:
-    def __init__(self, db):
-        self.db = db
+    def __init__(self, context):
+        self.db = context['db']
 
     def help(self):
-        return {"desc":"grimble",
+        return {"desc":"Fetch product info from DB",
                 "args":[
-                {"name":"startTime", "type":"datetime","req":"Y","desc":"foo"},
-                {"name":"endTime", "type":"datetime","req":"N","desc":"foo"}
+                {"name":"productType", "type":"array","req":"N","desc":"fetch only products of this type(s)"}
                 ]}
     
     def start(self, args):
         self.args = args
-        return {"foo":"bar"}
-        
+
     def next(self):
-        for doc in self.db['product'].find():
+        pred = {}  # Fetch all
+        if 'productType' in self.args:
+            pred = {"prodType": {"$in": self.args['productType']}}
+
+        for doc in self.db['product'].find(pred):
             yield doc
 
     def end(self):
         pass
-
-def logF(doc):
-    print doc
 
 
 def main(args):
@@ -40,14 +35,8 @@ def main(args):
     db = client['testX']
 
     r = WebF.WebF(args)
-
-    r.registerFunction("helloWorld", Func1(db))
-
-    r.registerLogger(logF)
-
-    print "Waiting."
+    r.registerFunction("getProducts", Func1, {"db": db})
     r.go()
-
 
 main(sys.argv)
 
