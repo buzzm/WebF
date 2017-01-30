@@ -120,6 +120,10 @@ operator.
 * end:  Called after iteration to next() has concluded.  Can option return
 a dict that will be sent to the client.
 
+The class optionally may provide an `authenticate` method.  See 
+Authentication below for more.
+
+
 Functions can have zero more arguments.  Unlike traditional functions,
 there are only 2 HTTP arguments in the framework `args` and `fargs`.  The latter
 is framework arguments which we'll cover later.  `args` is simply a JSON
@@ -405,15 +409,38 @@ def main(args):
     r.run()
 
 main(sys.argv)
-
-
-
-
 ```
 
+Authentication
+--------------
+WebF has no authentication spec per-se.   Instead, it is delegated to
+an optional method in the class named `authenticate`.
+```
+class Func1:
+    def authenticate(self, headers, args):
+        return (T_or_F, username [, optional dict of err data])
+```
+`authenticate` is passed the headers and args and the method is free
+to perform what tasks necessary, along with material that might have been
+set up during `__init__`, to authenticate and allow the rest of the call
+to continue.  A very simple
+example is basic authentication. where header `Authorization` would have
+the value `Basic <base64 enconding of name:password>`.
 
+The method must return a tuple with either 2 or 3 elements:
 
-TBD:  user/password stuff
+1. True or False.   Indicates success or failure
+2. Username.  Whatever user was trying to authenticate, as best as can be
+determined by the method.
+3. (Optional) dictionary of data to be used in the err message upon failure.
+Is not used in the event of success.
+
+Upon success, the rest of the function handler chain (start/next/end) is
+executed.
+Upon failure, errcode 401 is returned along with an error diagnostic,
+additionally populated (and optionally) by the dict of err data described
+above.
+
 
 
 License

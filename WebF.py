@@ -38,9 +38,9 @@ class WebF:
 
 
 
-    class internalArgErr:
-        def __init__(self, argerrs):
-            self.errs = argerrs
+    class internalErr:
+        def __init__(self, errs):
+            self.errs = errs
 
         def start(self, args):
            pass
@@ -121,7 +121,9 @@ class WebF:
                             
             
 
+
         def call(self, func, params, content):
+
             xx = self.server.parent
 
             try:
@@ -137,6 +139,8 @@ class WebF:
                     self.send_response(404)
 
                 else:
+                    user = None
+
                     (hname,context) = xx.fmap[func]
 
                     # Construct a NEW handler instance!
@@ -168,22 +172,42 @@ class WebF:
                     argerrs = self.chkArgs(zz, args)
 
                     if len(argerrs) > 0:
-                       #handler = xx.fmap['__argErr']                        
-                       handler = xx.internalArgErr(argerrs)
+                       handler = xx.internalErr(argerrs)
                        respCode = 400
+
+                    else:
+                       authMethod = getattr(handler, "authenticate", None)
+                       if callable(authMethod):
+
+                          # Expect (T|F, name, data)
+                          tt2 = authMethod(self.headers, args)
+
+                          user = tt2[1]
+
+                          if tt2[0] == False:
+                             err = {
+                                'errcode': 3,
+                                'user': user,
+                                'msg': "authentication failure"
+                                }
+                             if len(tt2) == 3:
+                                err['data'] = tt2[2]
+
+                             handler = xx.internalErr([err])
+                             respCode = 401
 
                     self.send_response(respCode)
                     self.send_header('Content-type', contentType)
-                       
-                    hdrdoc = handler.start(args)
-                    if hdrdoc != None:
-                        mson.write(self.wfile, hdrdoc, jfmt)
 
                     # TBD TBD !!!
                     #    Gotta do something rational with this!
                     # CORS!  Trust our own local tomcat:
                     self.send_header('Access-Control-Allow-Origin', 'http://localhost:8087')
                     self.end_headers()
+
+                    hdrdoc = handler.start(args)
+                    if hdrdoc != None:
+                        mson.write(self.wfile, hdrdoc, jfmt)
 
                     for r in handler.next():
                         mson.write(self.wfile, r, jfmt)
@@ -192,12 +216,11 @@ class WebF:
                     if footerdoc != None:
                         mson.write(self.wfile, hdrdoc, jfmt)
 
+
+
                     ee = datetime.datetime.now()
 
                     if xx.log_handler != None:
-
-                       # TBD
-                        user = self.headers.getheader('X-AVL-User')
                         if user == None:
                             user = "ANONYMOUS"
 
