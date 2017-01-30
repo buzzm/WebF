@@ -381,6 +381,7 @@ class MyProgram:
     def run(self):
         self.websvc.go()  # drop into loop
 
+    # Example of a method that we want to call from within with web service:
     def fancyCalculation(self, a, b):
         return a + b
 
@@ -440,6 +441,13 @@ executed.
 Upon failure, errcode 401 is returned along with an error diagnostic,
 additionally populated (and optionally) by the dict of err data described
 above.
+
+Like the other class methods, `authenticate` can interact with both the parent
+class and the context.  Therefore, more sophisticated schemes like 
+cookies and e-tags can be used to maintain state across calls to the function.
+For example, authentication on one function can provide a time-bounded 
+session cookie that could be reused by different peer functions within the
+same service.
 
 
 
