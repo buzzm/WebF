@@ -110,15 +110,19 @@ persist across calls, if desired, can be accessed/managed via the context.
 The class must support these methods:
 * __init__:  Is passed context as argument.
 * help:  More on this later.
+
+The class optionally may provide these methods:
 * start:  Called once at the start of the web service call and is passed
 the args sent in the URL.   Can optionally return a dict that will be
-sent to the client.
+sent to the client.  
 * next:  Called iteratively as necessary for the function to vend units of
 content.   It is not necessary, for example, to build a giant array of 1m
 items and send it out as one thing.  next() leverages python's yield 
 operator.
 * end:  Called after iteration to next() has concluded.  Can option return
 a dict that will be sent to the client.
+Command-style function that only return a status doc typically only need a
+start() method; no next() or end().
 
 The class optionally may provide an `authenticate` method.  See 
 Authentication below for more.

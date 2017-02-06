@@ -7,6 +7,8 @@ import urllib
 import datetime
 from mson import mson
 
+import traceback
+import sys
 
 #  See stackoverflow.com for this.  Excellent.
 class MultiThreadedHTTPServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
@@ -78,7 +80,9 @@ class WebF:
         def getArgTypeToString(self, argval):
            ss  = argval.__class__.__name__
            if ss == 'unicode':
-              ss = "str"
+              ss = "string"
+           elif ss == 'str':           
+              ss = "string"
            elif ss == 'float':           
               ss = "double"
            elif ss == 'Decimal':
@@ -116,15 +120,57 @@ class WebF:
                                       "expected": argtype,
                                       "found": ss
                                       }})
-    
             return argerrs
                             
             
 
+        def respond(self, respCode, args, fmt, handler):
+           self.send_response(respCode)
+
+           contentType = 'text/json'
+
+           jfmt = None
+           if fmt == "bson":
+              contentType = 'text/bson'
+           else:
+              jfmt = mson.PURE
+              if fmt == "ejson":
+                 jfmt = mson.MONGO
+
+           self.send_header('Content-type', contentType)
+           # TBD TBD !!!
+           #    Gotta do something rational with this!
+           # CORS!  Trust our own local tomcat:
+           self.send_header('Access-Control-Allow-Origin', 'http://localhost:8087')
+           self.end_headers()
+           
+
+           mmm = getattr(handler, "start", None)
+           if callable(mmm):
+              hdrdoc = handler.start(args)
+              if hdrdoc != None:
+                 mson.write(self.wfile, hdrdoc, jfmt)
+
+           mmm = getattr(handler, "next", None)
+           if callable(mmm):              
+              for r in handler.next():
+                 mson.write(self.wfile, r, jfmt)
+
+           mmm = getattr(handler, "end", None)
+           if callable(mmm):              
+              footerdoc = handler.end()
+              if footerdoc != None:
+                 mson.write(self.wfile, hdrdoc, jfmt)
+                    
+
+
 
         def call(self, func, params, content):
-
             xx = self.server.parent
+
+            respCode    = 200
+            args        = None
+            fargs       = None
 
             try:
                 ss = datetime.datetime.now()
@@ -135,8 +181,18 @@ class WebF:
                 if func == "help":
                     func = "__help"
                 
+                #
+                # START PRELIM
+                # Get the function, parse the args
+                #
                 if func not in xx.fmap:
-                    self.send_response(404)
+                   err = {
+                      'errcode': 5,
+                      'msg': "no such function",
+                      "data": func
+                      }
+                   handler = xx.internalErr([err])
+                   respCode = 404 
 
                 else:
                     user = None
@@ -146,31 +202,42 @@ class WebF:
                     # Construct a NEW handler instance!
                     handler = hname(context)
 
-                    args = mson.parse(params['args'], mson.MONGO) if 'args' in params else {}
-                    fargs = mson.parse(params['fargs'], mson.MONGO) if 'fargs' in params else {}
+                    try:
+                       args = mson.parse(params['args'], mson.MONGO) if 'args' in params else {}
+                    except:
+                       err = {
+                          'errcode': 4,
+                          'msg': "malformed JSON for args"
+                          }
+                       handler = xx.internalErr([err])
+                       respCode = 400
 
-                    fmt = None;  #  TBD:  default?
+                    try:
+                       fargs = mson.parse(params['fargs'], mson.MONGO) if 'fargs' in params else {}
+                    except:
+                       err = {
+                          'errcode': 5,
+                          'msg': "malformed JSON for fargs"
+                          }
+                       handler = xx.internalErr([err])
+                       respCode = 400
+
+
+                # END PRELIM
+                if respCode != 200:
+                   self.respond(respCode, args, "json", handler)
+
+                else:
+                    #  Basic stuff is OK.  Move on.
+
+                    fmt = None; 
                     if fargs is not None:
                         if "fmt" in fargs:
                             fmt = fargs["fmt"].lower()
 
+
                     zz = handler.help()
-
-
-                    contentType = 'text/json'
-                    respCode = 200
-
-                    jfmt = None
-                    if fmt == "bson":
-                       contentType = 'text/bson'
-                    else:
-                        jfmt = mson.PURE
-                        if fmt == "ejson":
-                            jfmt = mson.MONGO
-
-
                     argerrs = self.chkArgs(zz, args)
-
                     if len(argerrs) > 0:
                        handler = xx.internalErr(argerrs)
                        respCode = 400
@@ -196,39 +263,20 @@ class WebF:
                              handler = xx.internalErr([err])
                              respCode = 401
 
-                    self.send_response(respCode)
-                    self.send_header('Content-type', contentType)
-
-                    # TBD TBD !!!
-                    #    Gotta do something rational with this!
-                    # CORS!  Trust our own local tomcat:
-                    self.send_header('Access-Control-Allow-Origin', 'http://localhost:8087')
-                    self.end_headers()
-
-                    hdrdoc = handler.start(args)
-                    if hdrdoc != None:
-                        mson.write(self.wfile, hdrdoc, jfmt)
-
-                    for r in handler.next():
-                        mson.write(self.wfile, r, jfmt)
-                
-                    footerdoc = handler.end()
-                    if footerdoc != None:
-                        mson.write(self.wfile, hdrdoc, jfmt)
+                    self.respond(respCode, args, fmt, handler)
 
 
+                ee = datetime.datetime.now()
 
-                    ee = datetime.datetime.now()
+                if xx.log_handler != None:
+                   if user == None:
+                      user = "ANONYMOUS"
 
-                    if xx.log_handler != None:
-                        if user == None:
-                            user = "ANONYMOUS"
+                   #diffms = int((ee - ss)/1000)
+                   tdelta = ee - ss
+                   diffms = int(tdelta.microseconds/1000)
 
-                        #diffms = int((ee - ss)/1000)
-                        tdelta = ee - ss
-                        diffms = int(tdelta.microseconds/1000)
-
-                        xx.log_handler({
+                   xx.log_handler({
                               "user": user,
                               "func": func,
                               "params": params,
@@ -239,9 +287,15 @@ class WebF:
 
 
             except Exception, e:
-                self.wfile.write(e)
-                raise e
+               err = {
+                  'errcode': 6,
+                  'msg': "internal error",
+                  "data": func
+                  }
+               handler = xx.internalErr([err])
+               self.respond(500, args, fmt, handler)
 
+               raise e
 
 
     #
@@ -255,9 +309,7 @@ class WebF:
         self.wargs = wargs if wargs is not None else {}
 
         listen_addr = "localhost"
-
         listen_port = int(self.wargs['port']) if 'port' in self.wargs else 7778
-
 
         self.httpd = MultiThreadedHTTPServer((listen_addr, listen_port), WebF.HTTPHandler)
 

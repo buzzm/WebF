@@ -15,6 +15,11 @@ class Func1:
                  "desc":"max number of snacks"}
                 ]}
     
+
+    def authenticate(self, headers, args):
+        return (True, "buzz")
+        #return (False, "buzz", {"msg":"failed to login"})
+
     def start(self, args):
         for k in args:
             value = args[k]
