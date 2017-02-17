@@ -61,6 +61,8 @@ class WebF:
             (func,params) = self.parse(self.path)
             self.call(func, params, None)
 
+
+
         def parse(self, reqinfo):
             #print "parse ", reqinfo
             params = {}
@@ -138,10 +140,10 @@ class WebF:
                  jfmt = mson.MONGO
 
            self.send_header('Content-type', contentType)
-           # TBD TBD !!!
-           #    Gotta do something rational with this!
-           # CORS!  Trust our own local tomcat:
-           self.send_header('Access-Control-Allow-Origin', 'http://localhost:8087')
+
+           if self.server.parent.cors is not None:
+              self.send_header('Access-Control-Allow-Origin', self.server.parent.cors)
+
            self.end_headers()
            
 
@@ -303,7 +305,9 @@ class WebF:
     #  port           int      Port upon which to listen
     #  sslPEMKeyFile  string   Path to file containing PEM to activate SSL
     #                          (required for https access to this service)
-    #        
+    #  cors           URI | *  Set Access-Control-Allow-Origin to this
+    #                          value.  See http CORS docs for details
+    #
     def __init__(self, wargs=None):
         self.fmap = {}
         self.wargs = wargs if wargs is not None else {}
@@ -323,6 +327,8 @@ class WebF:
 
            self.httpd.socket = ssl.wrap_socket (self.httpd.socket, certfile=cf, server_side=True)
 
+
+        self.cors = self.wargs['cors'] if 'cors' in self.wargs else None
 
         self.log_handler = None   # optional
 
