@@ -85,6 +85,7 @@ At this time, two options are availble upon construction:
 ```
 port (int)              Port upon which to listen
 sslPEMKeyFile (string)  Path to file containing server-side PEM; automatically enables SSL to permit https access to this service
+cors (string)           URI or *.  If set, server will set Access-Control-Allow-Origin header to this value upon return
 ```
 
 This is a "service."  A service can have many functions associated with it.  

@@ -145,7 +145,6 @@ class WebF:
               self.send_header('Access-Control-Allow-Origin', self.server.parent.cors)
 
            self.end_headers()
-           
 
            mmm = getattr(handler, "start", None)
            if callable(mmm):
@@ -162,9 +161,9 @@ class WebF:
            if callable(mmm):              
               footerdoc = handler.end()
               if footerdoc != None:
-                 mson.write(self.wfile, hdrdoc, jfmt)
-                    
+                 mson.write(self.wfile, footerdoc, jfmt)
 
+                    
 
 
         def call(self, func, params, content):
