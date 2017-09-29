@@ -23,9 +23,9 @@ class WebF:
         def help(self):
             return {}
 
-        def start(self, args):
-            pass
-        
+        def start(self, cmd, hdrs, args, rfile):
+           pass
+
         def next(self):
             for fname in self.parent.fmap:
                 if False == fname.startswith('__'):
@@ -44,7 +44,7 @@ class WebF:
         def __init__(self, errs):
             self.errs = errs
 
-        def start(self, args):
+        def start(self, cmd, hdrs, args, rfile):
            pass
         
         def next(self):
@@ -59,8 +59,11 @@ class WebF:
     class HTTPHandler(BaseHTTPRequestHandler):
         def do_GET(self):
             (func,params) = self.parse(self.path)
-            self.call(func, params, None)
+            self.call(func, params)
 
+        def do_POST(self):
+            (func,params) = self.parse(self.path)
+            self.call(func, params)
 
 
         def parse(self, reqinfo):
@@ -148,7 +151,7 @@ class WebF:
 
            mmm = getattr(handler, "start", None)
            if callable(mmm):
-              hdrdoc = handler.start(args)
+              hdrdoc = handler.start(self.command, self.headers, args, self.rfile)
               if hdrdoc != None:
                  mson.write(self.wfile, hdrdoc, jfmt)
 
@@ -166,12 +169,13 @@ class WebF:
                     
 
 
-        def call(self, func, params, content):
+        def call(self, func, params):
             xx = self.server.parent
 
             respCode    = 200
             args        = None
             fargs       = None
+            fmt         = None; 
 
             try:
                 ss = datetime.datetime.now()
@@ -231,7 +235,6 @@ class WebF:
                 else:
                     #  Basic stuff is OK.  Move on.
 
-                    fmt = None; 
                     if fargs is not None:
                         if "fmt" in fargs:
                             fmt = fargs["fmt"].lower()
@@ -301,17 +304,19 @@ class WebF:
 
     #
     #  wargs:
-    #  port           int      Port upon which to listen
+    #  port           int      listen port (default: 7778)
+    #  addr           string   listen addr (default: localhost BUT if you want
+    #                          other machines to connect, specify "0.0.0.0"
     #  sslPEMKeyFile  string   Path to file containing PEM to activate SSL
     #                          (required for https access to this service)
     #  cors           URI | *  Set Access-Control-Allow-Origin to this
-    #                          value.  See http CORS docs for details
+    #                          value.  See http CORS docs for details.
     #
     def __init__(self, wargs=None):
         self.fmap = {}
         self.wargs = wargs if wargs is not None else {}
 
-        listen_addr = "localhost"
+        listen_addr = self.wargs['addr'] if 'addr' in self.wargs else "localhost"
         listen_port = int(self.wargs['port']) if 'port' in self.wargs else 7778
 
         self.httpd = MultiThreadedHTTPServer((listen_addr, listen_port), WebF.HTTPHandler)
