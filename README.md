@@ -64,10 +64,16 @@ The WebF framework has these design goals:
 single arg called "args" which is a JSON string.  This permits standardization
 of representing extended types like Decimal and Dates and facilitates array and
 substructure processing.
-3. Ability to generate JSON, EJSON, BSON, or XML for output.  EJSON is extended
+3. Ability to generate JSON, EJSON, or BSON for output.  EJSON is extended
 JSON which originated at MongoDB and implements a convention for identifying
 types of data beyond the basic JSON types WITHOUT requiring a non-JSON compliant
-parser.
+parser.  Output format is set in an industry-standard way by specifying the 
+Accept header as follows:
+```
+json:   application/json
+ejson:  application/ejson
+bson:   application/bson
+```
 4. Automatic handling of help.  Calling http://machine:port/help will return
 the set of functions and descriptions and arguments to the caller.   
 
@@ -184,12 +190,9 @@ curl -g 'http://machine:port/foo?args={"value":"one%20two%20three"}'
 Again, WebF will properly decode URLs and convert args to a native
 python dictionary containing the proper types.
 
-
 `fargs` are framework-level args and are common across ALL functions
-in ANY service that is deployed.  
-(This is largely unexplored space)
-fmt   	 bson, json, ejson
-	 Emit output in one of these formats
+in ANY service that is deployed.  This is an area to be developed.
+
 
 Help
 ----

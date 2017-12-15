@@ -6,6 +6,7 @@ from SocketServer import ThreadingMixIn
 import urllib
 import datetime
 from mson import mson
+import bson
 
 import traceback
 import sys
@@ -63,6 +64,8 @@ class WebF:
 
         def do_POST(self):
             (func,params) = self.parse(self.path)
+            print "FUNC",func
+            print "PARAMS",params
             self.call(func, params)
 
 
@@ -129,18 +132,35 @@ class WebF:
                             
             
 
+        @staticmethod
+        def bsonWriter(ostream, doc, fmt):
+           # fmt is unused
+           ostream.write( bson.BSON.encode(doc) )
+
         def respond(self, respCode, args, fmt, handler):
            self.send_response(respCode)
 
-           contentType = 'text/json'
+           # Regular ol' json is the default:
+           contentType = 'application/json'
+           jfmt = mson.PURE
+           theWriter = mson.write
 
-           jfmt = None
-           if fmt == "bson":
-              contentType = 'text/bson'
+           if "Accept" in self.headers:
+              fmt = self.headers['Accept']
+
+              if fmt == "application/bson":
+                 contentType = 'application/bson'
+                 theWriter = self.bsonWriter
+
+              else:
+                 if fmt == "application/ejson":
+                    jfmt = mson.MONGO
+
+                 # else regular ol' json
            else:
-              jfmt = mson.PURE
-              if fmt == "ejson":
-                 jfmt = mson.MONGO
+              print "NO"
+
+
 
            self.send_header('Content-type', contentType)
 
@@ -153,18 +173,21 @@ class WebF:
            if callable(mmm):
               hdrdoc = handler.start(self.command, self.headers, args, self.rfile)
               if hdrdoc != None:
-                 mson.write(self.wfile, hdrdoc, jfmt)
+#                 mson.write(self.wfile, hdrdoc, jfmt)
+                 theWriter(self.wfile, hdrdoc, jfmt)
 
            mmm = getattr(handler, "next", None)
            if callable(mmm):              
               for r in handler.next():
-                 mson.write(self.wfile, r, jfmt)
+#                 mson.write(self.wfile, r, jfmt)
+                 theWriter(self.wfile, r, jfmt)
 
            mmm = getattr(handler, "end", None)
            if callable(mmm):              
               footerdoc = handler.end()
               if footerdoc != None:
-                 mson.write(self.wfile, footerdoc, jfmt)
+#                 mson.write(self.wfile, footerdoc, jfmt)
+                 theWriter(self.wfile, footerdoc, jfmt)
 
                     
 

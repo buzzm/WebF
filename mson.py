@@ -232,13 +232,21 @@ class mson:
                 #  Sigh.  Must get millis from micros!
                 ms = v.microsecond/1000
 
-                emit(spcs,  "{\"$date\":\"%s.%sZ\"}" % (q,ms))
+                iso8601 ="%s.%sZ" % (q,ms)
+
+                #  Dates are simply too often used to force people
+                #  not in MongoDB mode to deal with the extra $date.
+                #  It's the caller's choice so... if they really want
+                #  the fidelity, ask for ejson or better yet:  bson!
+                if fmt == mson.MONGO:
+                    emit(spcs,  "{\"$date\":\"%s\"}" % iso8601)
+                else:
+                    emit(spcs, "\"%s\"" % iso8601)
 
 
             elif isinstance(v, ObjectId):
                 # toString of ObjectId mercifully does the right thing....
                 emit(spcs,  "{\"$oid\":\"%s\"}" % v )
-         
 
             elif isinstance(v, list):
                 emit (spcs2,  "[" )
