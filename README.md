@@ -125,8 +125,8 @@ The class must support these methods:
   * hdrs:  A dictionary of HTTP headers
   * args:  A dictionary of arguments, decoded from the inbound JSON args and observing EJSON conventions, so dates end up as datetime.datetime, etc.
   * rfile:  The input stream if this is a PUT or POST
-It must
-return a tuple containing the response code and a single dict that will be
+
+It must return a tuple containing the response code and a single dict that will be
 sent to the client.  If the dict is `None`, only the response code is sent.
 This allows simple functions to package all logic in the start method, 
 such as doing database lookups and transforms, and returning status and
