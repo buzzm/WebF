@@ -20,22 +20,24 @@ class Func1:
         return {"type":"simple",
 	        "desc":"A function that returns something.",
                 "args":[
-                {"name":"startTime", "type":"datetime","req":"Y",
+                {"name":"startTime", "type":"datetime","req":"N",
                  "desc":"Starting time for snacking"},
-                {"name":"maxCount", "type":"int","req":"N",
+                {"name":"maxCount", "type":"int","req":"Y",
                  "desc":"max number of snacks"}
                 ]}
     
-    def start(self, args):
-        pass
+    def start(self, cmd, hdrs, args, rfile):
+        # maxCount must be in args because it is required:
+        self.maxCount = args['maxCount']
+        return (200, None)
         
     def next(self):
-        for doc in [{"name":"chips", "count":6},
-                      {"name":"fruit", "count":1}]:
+        for n in range(0, self.maxCount):
+            doc = {"name":"chips", "type":n}
             yield doc
 
-    def end(self):
-        pass
+    # No need to define end()
+
 
 def main():
     websvc = WebF.WebF()
@@ -48,12 +50,13 @@ main()
 $ python mysvc.py &
 Waiting for web calls
 
-$ curl -g 'http://localhost:7778/helloWorld?args={"startTime":"2017-01-02T19:00:06.000Z","corn":5}'
-{"count":6,"name":"chips"}
-{"count":1,"name":"fruit"}
+$ curl -g 'http://localhost:7778/helloWorld?args={"startTime":{"$date":"2017-01-02T19:00:06.000Z"},"maxCount":3}'
+{"type":0,"name":"chips"}
+{"type":1,"name":"chips"}
+{"type":2,"name":"chips"}
 
 $ curl -g 'http://localhost:7778/help
-{"funcname":"helloWorld","args":{"args":[{"req":"Y","type":"datetime","name":"startTime","desc":"Starting time for snacking"},{"req":"N","type":"int","name":"maxCount","desc":"max number of snacks"}],"desc":"A function that returns something."}}
+{"funcname":"helloWorld","args":{"args":[{"req":"N","type":"datetime","name":"startTime","desc":"Starting time for snacking"},{"req":"Y","type":"int","name":"maxCount","desc":"max number of snacks"}],"desc":"A function that returns something."}}
 
 ```
 
@@ -117,23 +120,32 @@ persist across calls, if desired, can be accessed/managed via the context.
 The class must support these methods:
 * __init__:  Is passed context as argument.
 * help:  More on this later.
+* start:  Called once at the start of the web service call and is passed:
+  * cmd: "GET", "POST", "PUT", or "DELETE"
+  * hdrs:  A dictionary of HTTP headers
+  * args:  A dictionary of arguments, decoded from the inbound JSON args and observing EJSON conventions, so dates end up as datetime.datetime, etc.
+  * rfile:  The input stream if this is a PUT or POST
+It must
+return a tuple containing the response code and a single dict that will be
+sent to the client.  If the dict is `None`, only the response code is sent.
+This allows simple functions to package all logic in the start method, 
+such as doing database lookups and transforms, and returning status and
+a result doc.
 
-The class optionally may provide these methods:
-* start:  Called once at the start of the web service call and is passed
-the args sent in the URL.   Can optionally return a dict that will be
-sent to the client.  
+The class can optionally provide these methods:
 * next:  Called iteratively as necessary for the function to vend units of
-content.   It is not necessary, for example, to build a giant array of 1m
-items and send it out as one thing.  next() leverages python's yield 
-operator.
-* end:  Called after iteration to next() has concluded.  Can option return
+content.   This allows the function to incrementally vend output
+to the consumer.  It is therefore not necessary, for example, to build a giant
+array of 100,000 items in the start() method and emit a single huge response.
+The client, however, sees a single stream of material and does not have to
+perform any special actions.  next() leverages python's yield operator.
+* end:  Called after iteration to next() has concluded.  Can optionally return
 a dict that will be sent to the client.
 Command-style function that only return a status doc typically only need a
 start() method; no next() or end().
 
 The class optionally may provide an `authenticate` method.  See 
 Authentication below for more.
-
 
 Functions can have zero more arguments.  Unlike traditional functions,
 there are only 2 HTTP arguments in the framework `args` and `fargs`.  The latter
@@ -142,7 +154,7 @@ string that itself carries all the "real" arguments.  This provides a
 standard, easily externalizable format to supply arguments of any type
 including lists of structures, binary data, etc.  The incoming JSON
 is parsed into a real python dictionary so functions never have to deal 
-with JSON itsel, http decoding, etc.  In addition, EJSON is always honored
+with JSON itself, http decoding, etc.  In addition, EJSON is always honored
 upon input to specify non-standard JSON types.  Some args examples:
 ```
 Assume http://machine:port/ is the URL prefix; then:
@@ -176,15 +188,27 @@ Pass value = date(2017-01-20)
     EJSON requires dates to be passed as ISO8601 strings.
     value will be class datetime.datetime 
 
+The advantage of the standardized JSON arg structure becomes clear with
+really complex args:
+    foo?args={"reqs":[{"n":"A1","t":7,"data":["foo","bar"]},{"n":"A2","t":9,"data":{"sample":{"$numberDecimal":"4.40"}}}]}
+
+Of course, VERY complex and/or large arguments should probably be sent via POST.
+
 ```
 Remember it is important to encode spaces and other special characters in the
 web service call, and if calling from the shell, protecting the whole thing 
 with single quotes and -g if using curl to prevent globbing:
 ```
-This will not work:
-curl -g http://machine:port/foo?args={"value":"one two three"}
+This will not work!  The spaces between one, two, and three break the URL:
+curl http://machine:port/foo?args={"value":"one two three"}
 
-This will:
+Nor will this.  The braces trigger globbing in curl
+curl 'http://machine:port/foo?args={"value":"one two three"}'
+
+Nor will this.  URLs must be encoded:
+curl -g 'http://machine:port/foo?args={"value":"one two three"}'
+
+Finally, this WILL work:
 curl -g 'http://machine:port/foo?args={"value":"one%20two%20three"}'
 ```
 Again, WebF will properly decode URLs and convert args to a native
@@ -207,7 +231,8 @@ The help() method has a specific structure:
 ```
 {
   "type": "simple",
-  "desc": "Tp level description of the function",
+  "desc": "Top level description of the function",
+  "allowUnknownArgs":boolean,
   "args": [
     {"name": "argName", "type": "argType", "req": Y|N, "desc":"description"}
     ...
@@ -219,6 +244,12 @@ appear in the dict and an definition for their meaning and use.
 The only `type` currently supported is `simple`.
 In the future, "type":"json-schema" might be used to provide very
 comprehensive and detailed help on arguments.
+
+`allowUnknownArgs` defaults False.  Unless set to True, extra/unknown args
+are caught and the error code 400 will be returned.  This is very useful
+for catching misspellings of optional args and in general providing a more
+locked-down interface.
+
 
 argType is a string, one of the following:
 ```
@@ -232,23 +263,21 @@ When a call is made to WebF, the help is accessed and the args checked
 for `req` and type.  Any errors will be collected and HTTP error 400 
 returned along with the error payload:
 ```
-A successful call:
+A successful call (note use of -i so we can see the HTTP headers):
 
-$ curl -i -g 'http://localhost:7778/helloWorld?args={"startTime":{"$date":"2017-01-02T19:00:06.000Z"}}'
+$ curl -i -g 'http://localhost:7778/helloWorld?args={"startTime":{"$date":"2017-01-02T19:00:06.000Z"},"maxCount":3}'
 HTTP/1.0 200 OK
 Content-type: text/json
+{"type":0,"name":"chips"}
+{"type":1,"name":"chips"}
+{"type":2,"name":"chips"}
 
-{"type":6,"name":"chips"}
-{"type":1,"name":"fruit"}
-
-
-Missing required arg startTime:
-$ curl -i -g 'http://localhost:7778/helloWorld?args={"bedTime":{"$date":"2017-01-02T19:00:06.000Z"}}'
+Missing required arg maxCount:
+$ curl -i -g 'http://localhost:7778/helloWorld?args={"startTime":{"$date":"2017-01-02T19:00:06.000Z"},"maxCount":3}'
 HTTP/1.0 400 Bad Request
 Content-type: text/json
 
-{"data":"startTime","errcode":1,"msg":"req arg not found"}
-
+{"data":"maxCount","errcode":1,"msg":"req arg not found"}
 
 Wrong arg type ($foo is not EJSON so it will remain as a dict)
 $ curl -i -g 'http://localhost:7778/helloWorld?args={"startTime":{"$foo":"2017-01-02T19:00:06.000Z"}}'
@@ -257,6 +286,8 @@ Content-type: text/json
 
 {"msg":"arg has wrong type","data":{"expected":"datetime","found":"dict","arg":"startTime"},"errcode":2}
 ```
+
+
 
 Logging
 -------
@@ -302,6 +333,7 @@ import sys
 class Func1:
     def __init__(self, context):
         self.db = context['db']
+        self.cursor = None
 
     def help(self):
         return {"desc":"Fetch product info from DB",
@@ -309,19 +341,22 @@ class Func1:
                 {"name":"productType", "type":"array","req":"N","desc":"fetch only products of this type(s)"}
                 ]}
     
-    def start(self, args):
-        self.args = args
+    def start(self, cmd, hdrs, args, rfile):
+        pred = {}  # Fetch all
+        if 'productType' in args:
+            logging.info("subset requested")
+            pred = {"prodType": {"$in": args['productType']}}
+
+        # Set up cursor:
+        self.cursor = self.parent.db['product'].find(pred)
+        
+        # Assume all OK; normally we'd catch exceptions and such.  We'll
+        # let the next() method iterate over the cursor:
+        return (200, None)
 
     def next(self):
-        pred = {}  # Fetch all
-        if 'productType' in self.args:
-            pred = {"prodType": {"$in": self.args['productType']}}
-
-        for doc in self.db['product'].find(pred):
+        for doc in self.cursor:
             yield doc
-
-    def end(self):
-        pass
 
 
 def main(args):
@@ -335,10 +370,13 @@ def main(args):
 main(sys.argv)
 ```
 
+
 Context can carry the instance of the invoking "self."  This makes ALL the 
 resources available.   Below is a complete example of this, including
 separating the invocation environment (main and command line args),
-the real logic body (MyProgram), and the WebF framework:
+the real logic body (MyProgram) which contains bespoke methods like
+`fancyCalculation()`, and the WebF framework:
+
 ```
 import pymongo
 from pymongo import MongoClient
@@ -358,20 +396,24 @@ class Func1:
                 {"name":"productType", "type":"array","req":"N","desc":"fetch only products of this type(s)"}
                 ]}
     
-    def start(self, args):
-        self.args = args
+    def start(self, cmd, hdrs, args, rfile):
+        pred = {}  # Fetch all
+        if 'productType' in args:
+            logging.info("subset requested")
+            pred = {"prodType": {"$in": args['productType']}}
+
+        # Set up cursor:
+        self.cursor = self.parent.db['product'].find(pred)
+        
+        # Assume all OK; normally we'd catch exceptions and such.  We'll
+        # let the next() method iterate over the cursor:
+        return (200, None)
 
     def next(self):
-        pred = {}  # Fetch all
-        if 'productType' in self.args:
-            pred = {"prodType": {"$in": self.args['productType']}}
-
-        for doc in self.parent.db['product'].find(pred):
+        for doc in self.cursor:
+	    # Add to the dict as vended from the database:
             doc['val'] = self.parent.fancyCalculation(5,6)
             yield doc
-
-    def end(self):
-        pass
 
 
 class MyProgram:

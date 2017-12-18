@@ -25,7 +25,7 @@ class WebF:
             return {}
 
         def start(self, cmd, hdrs, args, rfile):
-           pass
+           return (200, None)
 
         def next(self):
             for fname in self.parent.fmap:
@@ -42,11 +42,12 @@ class WebF:
 
 
     class internalErr:
-        def __init__(self, errs):
+        def __init__(self, respcode, errs):
+            self.respcode = respcode
             self.errs = errs
 
         def start(self, cmd, hdrs, args, rfile):
-           pass
+           return (self.respcode, None)
         
         def next(self):
             for err in self.errs:
@@ -64,8 +65,16 @@ class WebF:
 
         def do_POST(self):
             (func,params) = self.parse(self.path)
-            print "FUNC",func
-            print "PARAMS",params
+#            print "FUNC",func
+#            print "PARAMS",params
+            self.call(func, params)
+
+        def do_PUT(self):
+            (func,params) = self.parse(self.path)
+            self.call(func, params)
+
+        def do_DELETE(self):
+            (func,params) = self.parse(self.path)
             self.call(func, params)
 
 
@@ -103,8 +112,18 @@ class WebF:
 
         def chkArgs(self, funcHelp, webArgs):
             argerrs = []
+            allowUnknownArgs = False
+
+            if 'allowUnknownArgs' in funcHelp:
+               allowUnknownArgs = funcHelp['allowUnknownArgs']
+
+            declaredArgs = {}
+
             if 'args' in funcHelp:
                 for hargs in funcHelp['args']:
+
+                    declaredArgs[hargs['name']] = 1
+
                     if hargs['req'] == "Y":
                         if hargs['name'] not in webArgs:
                            argerrs.append({
@@ -128,6 +147,18 @@ class WebF:
                                       "expected": argtype,
                                       "found": ss
                                       }})
+                             
+                # Now go the other way:  Check webargs:
+                if allowUnknownArgs == False:
+                   for warg in webArgs:
+                      if warg not in declaredArgs:
+                         argerrs.append({
+                             "errcode":2,
+                             "msg":"unknown arg",
+                             "data": {
+                                "arg": warg
+                                }})
+                       
             return argerrs
                             
             
@@ -137,7 +168,17 @@ class WebF:
            # fmt is unused
            ostream.write( bson.BSON.encode(doc) )
 
-        def respond(self, respCode, args, fmt, handler):
+
+
+
+        def respond(self, args, handler):
+
+           hdrdoc = None
+
+           # Give start() a chance to do something; it is required mostly
+           # because it must provide a response code.
+           (respCode, hdrdoc) = handler.start(self.command, self.headers, args, self.rfile)
+
            self.send_response(respCode)
 
            # Regular ol' json is the default:
@@ -156,25 +197,18 @@ class WebF:
                  if fmt == "application/ejson":
                     jfmt = mson.MONGO
 
-                 # else regular ol' json
-           else:
-              print "NO"
-
+           # else regular ol' json
 
 
            self.send_header('Content-type', contentType)
 
            if self.server.parent.cors is not None:
               self.send_header('Access-Control-Allow-Origin', self.server.parent.cors)
-
            self.end_headers()
 
-           mmm = getattr(handler, "start", None)
-           if callable(mmm):
-              hdrdoc = handler.start(self.command, self.headers, args, self.rfile)
-              if hdrdoc != None:
+           if hdrdoc != None:
 #                 mson.write(self.wfile, hdrdoc, jfmt)
-                 theWriter(self.wfile, hdrdoc, jfmt)
+              theWriter(self.wfile, hdrdoc, jfmt)
 
            mmm = getattr(handler, "next", None)
            if callable(mmm):              
@@ -201,6 +235,8 @@ class WebF:
             fmt         = None; 
 
             try:
+                user = None
+
                 ss = datetime.datetime.now()
 
                 # The Exception:
@@ -208,23 +244,21 @@ class WebF:
                 # function that bridges internal and external handling.
                 if func == "help":
                     func = "__help"
-                
+
                 #
                 # START PRELIM
                 # Get the function, parse the args
                 #
                 if func not in xx.fmap:
                    err = {
-                      'errcode': 5,
+                      'errcode': 5,  # TBD
                       'msg': "no such function",
                       "data": func
                       }
-                   handler = xx.internalErr([err])
                    respCode = 404 
+                   handler = xx.internalErr(respCode, [err])
 
                 else:
-                    user = None
-
                     (hname,context) = xx.fmap[func]
 
                     # Construct a NEW handler instance!
@@ -237,8 +271,9 @@ class WebF:
                           'errcode': 4,
                           'msg': "malformed JSON for args"
                           }
-                       handler = xx.internalErr([err])
                        respCode = 400
+                       handler = xx.internalErr(respCode, [err])
+
 
                     try:
                        fargs = mson.parse(params['fargs'], mson.MONGO) if 'fargs' in params else {}
@@ -247,27 +282,25 @@ class WebF:
                           'errcode': 5,
                           'msg': "malformed JSON for fargs"
                           }
-                       handler = xx.internalErr([err])
                        respCode = 400
+                       handler = xx.internalErr(respCode, [err])
+
 
 
                 # END PRELIM
                 if respCode != 200:
-                   self.respond(respCode, args, "json", handler)
+                   self.respond(args, handler)
 
                 else:
-                    #  Basic stuff is OK.  Move on.
-
-                    if fargs is not None:
-                        if "fmt" in fargs:
-                            fmt = fargs["fmt"].lower()
-
-
+                    #  Basic stuff is OK and handler is set.  Move on.
+                    #  Check args and authentication.  If either is bad, then
+                    #  SWITCH the handler to the error handler and set an
+                    #  appropriate HTTP return code.
                     zz = handler.help()
                     argerrs = self.chkArgs(zz, args)
                     if len(argerrs) > 0:
-                       handler = xx.internalErr(argerrs)
                        respCode = 400
+                       handler = xx.internalErr(respCode, argerrs)
 
                     else:
                        authMethod = getattr(handler, "authenticate", None)
@@ -287,10 +320,9 @@ class WebF:
                              if len(tt2) == 3:
                                 err['data'] = tt2[2]
 
-                             handler = xx.internalErr([err])
-                             respCode = 401
+                             handler = xx.internalErr(401, [err])
 
-                    self.respond(respCode, args, fmt, handler)
+                    self.respond(args, handler)
 
 
                 ee = datetime.datetime.now()
@@ -319,8 +351,8 @@ class WebF:
                   'msg': "internal error",
                   "data": func
                   }
-               handler = xx.internalErr([err])
-               self.respond(500, args, fmt, handler)
+               handler = xx.internalErr(500, [err])
+               self.respond(args, handler)
 
                raise e
 
@@ -374,5 +406,3 @@ class WebF:
     def go(self):
         self.httpd.serve_forever()
 
-    def tickle(self, funcname, args):
-        self.process(funcname, args)
