@@ -11,9 +11,10 @@ import bson
 import traceback
 import sys
 
+
 #  See stackoverflow.com for this.  Excellent.
 class MultiThreadedHTTPServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
-   pass
+    pass
 
 
 class WebF:
@@ -76,6 +77,13 @@ class WebF:
         def do_DELETE(self):
             (func,params) = self.parse(self.path)
             self.call(func, params)
+
+        def log_message(self, format, *args):
+           xx = self.server.parent
+           if xx.log_handler == None:
+              print "%s - - [%s] %s" % (self.address_string(),self.log_date_time_string(),format%args)
+
+
 
 
         def parse(self, reqinfo):
@@ -336,13 +344,14 @@ class WebF:
                    diffms = int(tdelta.microseconds/1000)
 
                    xx.log_handler({
-                              "user": user,
-                              "func": func,
-                              "params": params,
-                              "stime": ss,
-                              "etime": ee,
-                              "millis": diffms,
-                              "status": respCode})
+                         "addr": self.address_string(),
+                         "user": user,
+                         "func": func,
+                         "params": params,
+                         "stime": ss,
+                         "etime": ee,
+                         "millis": diffms,
+                         "status": respCode})
 
 
             except Exception, e:
@@ -353,6 +362,9 @@ class WebF:
                   }
                handler = xx.internalErr(500, [err])
                self.respond(args, handler)
+
+               import traceback
+               traceback.print_exc()
 
                raise e
 
