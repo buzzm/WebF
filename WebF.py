@@ -374,7 +374,8 @@ class WebF:
     #  port           int      listen port (default: 7778)
     #  addr           string   listen addr (default: localhost BUT if you want
     #                          other machines to connect, specify "0.0.0.0"
-    #  sslPEMKeyFile  string   Path to file containing PEM to activate SSL
+    #  sslPEMKeyFile  string   Path to PEM file containing concatenation of
+    #                          private key plus all certs (the cert chain)
     #                          (required for https access to this service)
     #  cors           URI | *  Set Access-Control-Allow-Origin to this
     #                          value.  See http CORS docs for details.
@@ -389,7 +390,8 @@ class WebF:
         self.httpd = MultiThreadedHTTPServer((listen_addr, listen_port), WebF.HTTPHandler)
 
         #  To run this server as https:
-        #  Make a pem with
+        #  Make a key+cert file; note -keyout arg puts the private key into
+        #  the SAME FILE as the cert!
         #  openssl req -new -x509 -keyout server.pem -out server.pem -days 365 -nodes
         #  Pass that PEM file as value for sslPEMKeyFile
         if 'sslPEMKeyFile' in self.wargs:

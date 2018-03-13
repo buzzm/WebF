@@ -41,7 +41,7 @@ class Func1:
 
 def main():
     websvc = WebF.WebF()
-    websvc.registerFunction("helloWorld", Func1, context)
+    websvc.registerFunction("helloWorld", Func1, None)
     print "Waiting for web calls"
     websvc.go()
 
@@ -70,12 +70,14 @@ substructure processing.
 3. Ability to generate JSON, EJSON, or BSON for output.  EJSON is extended
 JSON which originated at MongoDB and implements a convention for identifying
 types of data beyond the basic JSON types WITHOUT requiring a non-JSON compliant
-parser.  Output format is set in an industry-standard way by specifying the 
-Accept header as follows:
+parser.  BSON is an ideal "code-to-code" format because of performance and
+precise preservation of types like datetimes, decimal128, binary, and 32
+vs. 64 bit integers.  Output format is set in an industry-standard way by
+specifying the `Accept` header on the inbound call as follows:
 ```
-json:   application/json
-ejson:  application/ejson
-bson:   application/bson
+application/json    for json
+application/ejson   for ejson
+application/bson    for bson
 ```
 4. Automatic handling of help.  Calling http://machine:port/help will return
 the set of functions and descriptions and arguments to the caller.   
@@ -90,24 +92,30 @@ default 7778
 ```
 websvc = WebF.WebF()
 ```
-At this time, two options are availble upon construction:
+These options are available upon construction:
 ```
-port (int)              Port upon which to listen
-sslPEMKeyFile (string)  Path to file containing server-side PEM; automatically enables SSL to permit https access to this service
+addr (string)           listen addr (default: localhost BUT if you want other machines to connect, specify "0.0.0.0"
+port (int)              Port upon which to listen (default 7778)
+sslPEMKeyFile (string)  Path to PEM file containing a concatenation of private key and cert chain; automatically enables SSL to permit https access to this service
 cors (string)           URI or *.  If set, server will set Access-Control-Allow-Origin header to this value upon return
+
+Example:
+websvc = WebF.WebF({"port": 8080,
+       	            "sslPEMKeyFile": theFile,
+                    "cors":'*'})
 ```
 
-This is a "service."  A service can have many functions associated with it.  
-A function is named by the first path component in the URL, e.g. function foo
+Each server can have many functions associated with it.  
+A function is named by the first path component in the URL, e.g. function `foo`
 would be
 ```
       http://machine:port/foo
 ```
-Functions are created by binding a string name to a class (*not* the instance,
+Functions are created by binding the function name (a string) to a class (*not* the instance,
 the class; not the class name, the class!) plus "context" or variables to pass to the function class upon
 construction:
 ```
-websvc.registerFunction("helloWorld", Func1, context)
+websvc.registerFunction("foo", Func1, context)
 ```
 This approach differs slightly from Java servlets where typically the 
 servlet is instantiated only once in the lifetime of the container and
@@ -123,7 +131,7 @@ The class must support these methods:
 * start:  Called once at the start of the web service call and is passed:
   * cmd: "GET", "POST", "PUT", or "DELETE"
   * hdrs:  A dictionary of HTTP headers
-  * args:  A dictionary of arguments, decoded from the inbound JSON args and observing EJSON conventions, so dates end up as datetime.datetime, etc.
+  * args:  A dictionary of arguments, decoded from the inbound JSON args and observing EJSON conventions, so numbers are actually numbers, dates are datetime.datetime, etc.
   * rfile:  The input stream if this is a PUT or POST
 
 It must return a tuple containing the response code and a single dict that will be
@@ -148,14 +156,14 @@ The class optionally may provide an `authenticate` method.  See
 Authentication below for more.
 
 Functions can have zero more arguments.  Unlike traditional functions,
-there are only 2 HTTP arguments in the framework `args` and `fargs`.  The latter
+there are only 2 HTTP arguments in the framework: `args` and `fargs`.  The latter
 is framework arguments which we'll cover later.  `args` is simply a JSON
 string that itself carries all the "real" arguments.  This provides a 
 standard, easily externalizable format to supply arguments of any type
 including lists of structures, binary data, etc.  The incoming JSON
 is parsed into a real python dictionary so functions never have to deal 
 with JSON itself, http decoding, etc.  In addition, EJSON is always honored
-upon input to specify non-standard JSON types.  Some args examples:
+upon input to specify non-standard JSON types.  Some `args` examples:
 ```
 Assume http://machine:port/ is the URL prefix; then:
 
