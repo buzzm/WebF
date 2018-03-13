@@ -131,7 +131,7 @@ The class must support these methods:
 * start:  Called once at the start of the web service call and is passed:
   * cmd: "GET", "POST", "PUT", or "DELETE"
   * hdrs:  A dictionary of HTTP headers
-  * args:  A dictionary of arguments, decoded from the inbound JSON args and observing EJSON conventions, so numbers are actually numbers, dates are datetime.datetime, etc.
+  * args:  A dictionary of arguments, decoded from the inbound JSON args and observing EJSON conventions, so numbers are actually numbers, dates are `datetime.datetime`, etc.
   * rfile:  The input stream if this is a PUT or POST
 
 It must return a tuple containing the response code and a single dict that will be
@@ -151,6 +151,12 @@ perform any special actions.  next() leverages python's yield operator.
 a dict that will be sent to the client.
 Command-style function that only return a status doc typically only need a
 start() method; no next() or end().
+
+The class does not have to deal with encoding or output formats.  `start`,
+`next`, and `end` should return native python dicts complete with rich types
+like arrays and `Decimal` and `datetime.datetime` -- i.e. you don't have to
+bother with converting dates into ISO8601 strings.  The WebF framework will
+convert the data to the format specified in the `Accept` header.
 
 The class optionally may provide an `authenticate` method.  See 
 Authentication below for more.
