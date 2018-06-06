@@ -243,11 +243,33 @@ Basic example from before; nothing new:
 Now adding RESTful args:
     curl:             foo/E999/4?args={"id":"E123"}      
     args in start():  {"_":["E999","4"], "id":"E123"}
-
-The _ member of args is populated with the RESTful positional arguments.
+```
+The _ member of `args` is populated with the RESTful positional arguments.
 It is the responsibility of the function to determine which id should be
 used and for what purpose, especially in the context of the command
-(GET/PUT/POST/PATCH)
+(GET/PUT/POST/PATCH).
+
+The combination of standard args handling plus RESTful features makes it
+very easy to implement RESTful GET services that require extra 
+arguments to control behavior -- especially complex arguments like 
+filtering expressions:
+```
+# Get all things (no filter, no nothing):
+GET thing		
+
+# Get thing E123:
+GET thing/E123
+
+# Get all things of color red OR size < 8. Note we are using MongoDB filtering expressions here but that 
+# does NOT tie us to MongoDB!  The point is that the standard JSON handling makes it straightforward and
+# robust to pass complex structures:
+GET thing?args='{"filter":{"$or":[{"color":"red"},{"size":{"$lt":8}}]}}'
+
+# Same as above but limit fields to just id and maker:
+GET thing?args='{"filter":{"$or":[{"color":"red"},{"size":{"$lt":8}}]}, fields:["id","maker"]}'
+
+# Same as above but with paging:
+GET thing?args='{"filter":{"$or":[{"color":"red"},{"size":{"$lt":8}}]}, "fields":["id","maker"], "page":2, "limit":40}'
 ```
 
 `fargs` are framework-level args and are common across ALL functions
