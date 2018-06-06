@@ -66,11 +66,13 @@ class WebF:
 
         def do_POST(self):
             (func,params) = self.parse(self.path)
-#            print "FUNC",func
-#            print "PARAMS",params
             self.call(func, params)
 
         def do_PUT(self):
+            (func,params) = self.parse(self.path)
+            self.call(func, params)
+
+        def do_PATCH(self):
             (func,params) = self.parse(self.path)
             self.call(func, params)
 
@@ -97,7 +99,16 @@ class WebF:
             else:
                 func = reqinfo
 
-            func = func.strip('/')
+            #func = func.strip('/')
+
+            qq = func.split('/')
+            qq.pop(0)  # URL always has leading / so toss it...
+
+            func = qq.pop(0)
+
+            if len(qq) > 0:  
+                # is function/RESTarg
+                params['_'] = qq
 
             return ((func, params))
         
@@ -159,7 +170,7 @@ class WebF:
                 # Now go the other way:  Check webargs:
                 if allowUnknownArgs == False:
                    for warg in webArgs:
-                      if warg not in declaredArgs:
+                      if warg != '_' and warg not in declaredArgs:
                          argerrs.append({
                              "errcode":2,
                              "msg":"unknown arg",
@@ -274,6 +285,9 @@ class WebF:
 
                     try:
                        args = mson.parse(params['args'], mson.MONGO) if 'args' in params else {}
+                       if '_' in params:
+                           args['_'] = params['_'] 
+
                     except:
                        err = {
                           'errcode': 4,
@@ -390,10 +404,10 @@ class WebF:
         self.httpd = MultiThreadedHTTPServer((listen_addr, listen_port), WebF.HTTPHandler)
 
         #  To run this server as https:
-        #  Make a key+cert file; note -keyout arg puts the private key into
-        #  the SAME FILE as the cert!
-        #  openssl req -new -x509 -keyout server.pem -out server.pem -days 365 -nodes
-        #  Pass that PEM file as value for sslPEMKeyFile
+        #  Make a key and cert files:
+        #    openssl req -x509 -nodes -newkey rsa:2048 -subj "/CN=localhost" -keyout key.pem -out cert.pem -days 3650
+        #    cat key.pem cert.pem > mycert.pem
+        #  Pass the mycert.pem file as value for sslPEMKeyFile
         if 'sslPEMKeyFile' in self.wargs:
            import ssl   # condition import!
            cf = self.wargs['sslPEMKeyFile']

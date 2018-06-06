@@ -34,7 +34,7 @@ class Func1:
     def next(self):
         for n in range(0, self.maxCount):
             doc = {"name":"chips", "type":n}
-            yield doc
+            yield doc   # yield, NOT return!
 
     # No need to define end()
 
@@ -81,7 +81,7 @@ application/bson    for bson
 ```
 4. Automatic handling of help.  Calling http://machine:port/help will return
 the set of functions and descriptions and arguments to the caller.   
-
+5. Easy, flexible integration to RESTful callers.
 
 
 Overview
@@ -111,6 +111,8 @@ would be
 ```
       http://machine:port/foo
 ```
+All other path components following the first are considered RESTful arguments
+to the function and are handled as described in `args` below.
 Functions are created by binding the function name (a string) to a class (*not* the instance,
 the class; not the class name, the class!) plus "context" or variables to pass to the function class upon
 construction:
@@ -129,10 +131,12 @@ The class must support these methods:
 * __init__:  Is passed context as argument.
 * help:  More on this later.
 * start:  Called once at the start of the web service call and is passed:
-  * cmd: "GET", "POST", "PUT", or "DELETE"
+  * cmd: "GET", "POST", "PUT", "PATCH", or "DELETE"
   * hdrs:  A dictionary of HTTP headers
-  * args:  A dictionary of arguments, decoded from the inbound JSON args and observing EJSON conventions, so numbers are actually numbers, dates are `datetime.datetime`, etc.
-  * rfile:  The input stream if this is a PUT or POST
+  * args:  A dictionary of arguments, decoded from the inbound JSON args and observing EJSON conventions, so numbers are actually numbers, dates are `datetime.datetime`, etc.  Any RESTful arguments i.e. those path components appearing
+after the function name are placed into an array and assigned to the special
+argument name `_` in the `args` dictionary.
+  * rfile:  The input stream if this is a PUT, POST, or PATCH
 
 It must return a tuple containing the response code and a single dict that will be
 sent to the client.  If the dict is `None`, only the response code is sent.
@@ -228,8 +232,28 @@ curl -g 'http://machine:port/foo?args={"value":"one%20two%20three"}'
 Again, WebF will properly decode URLs and convert args to a native
 python dictionary containing the proper types.
 
+It is the responsibility of the function implementer to rationalize 
+specifically named arguments presented in `args` and those optionally
+appearing as RESTful args:
+```
+Basic example from before; nothing new:
+    curl:             foo?args={"id":"E123"}      
+    args in start():  {"id":"E123"}
+
+Now adding RESTful args:
+    curl:             foo/E999/4?args={"id":"E123"}      
+    args in start():  {"_":["E999","4"], "id":"E123"}
+
+The _ member of args is populated with the RESTful positional arguments.
+It is the responsibility of the function to determine which id should be
+used and for what purpose, especially in the context of the command
+(GET/PUT/POST/PATCH)
+```
+
 `fargs` are framework-level args and are common across ALL functions
 in ANY service that is deployed.  This is an area to be developed.
+
+
 
 
 Help
