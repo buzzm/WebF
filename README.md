@@ -265,11 +265,14 @@ GET thing/E123
 # robust to pass complex structures:
 GET thing?args='{"filter":{"$or":[{"color":"red"},{"size":{"$lt":8}}]}}'
 
-# Same as above but limit fields to just id and maker:
+# Same as above but restrict fields to just id and maker (i.e. don't return a huge payload):
 GET thing?args='{"filter":{"$or":[{"color":"red"},{"size":{"$lt":8}}]}, fields:["id","maker"]}'
 
 # Same as above but with paging:
 GET thing?args='{"filter":{"$or":[{"color":"red"},{"size":{"$lt":8}}]}, "fields":["id","maker"], "page":2, "limit":40}'
+
+# Get thing E123 but restrict fields as before:
+GET thing/E123?args='{"fields":["id","maker"]}'
 ```
 
 `fargs` are framework-level args and are common across ALL functions
