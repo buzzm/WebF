@@ -388,8 +388,8 @@ class WebF:
     #  port           int      listen port (default: 7778)
     #  addr           string   listen addr (default: localhost BUT if you want
     #                          other machines to connect, specify "0.0.0.0"
-    #  sslPEMKeyFile  string   Path to PEM file containing concatenation of
-    #                          private key plus all certs (the cert chain)
+    #  sslPEMKeyFile  string   Path to file in PEM format containing concatenation of
+    #                          private key plus ALL certs (the full cert chain)
     #                          (required for https access to this service)
     #  cors           URI | *  Set Access-Control-Allow-Origin to this
     #                          value.  See http CORS docs for details.

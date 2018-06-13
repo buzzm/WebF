@@ -96,7 +96,7 @@ These options are available upon construction:
 ```
 addr (string)           listen addr (default: localhost BUT if you want other machines to connect, specify "0.0.0.0"
 port (int)              Port upon which to listen (default 7778)
-sslPEMKeyFile (string)  Path to PEM file containing a concatenation of private key and cert chain; automatically enables SSL to permit https access to this service
+sslPEMKeyFile (string)  Path to file in PEM format containing a concatenation of private key and the full cert chain; automatically enables SSL to permit https access to this service
 cors (string)           URI or *.  If set, server will set Access-Control-Allow-Origin header to this value upon return
 
 Example:
