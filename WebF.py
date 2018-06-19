@@ -325,24 +325,29 @@ class WebF:
                        handler = xx.internalErr(respCode, argerrs)
 
                     else:
+                       tt2 = None
+                       # Go for local override first...
                        authMethod = getattr(handler, "authenticate", None)
                        if callable(authMethod):
-
-                          # Expect (T|F, name, data)
                           tt2 = authMethod(self.headers, args)
 
-                          user = tt2[1]
+                       elif xx.auth_handler is not None:
+                          tt2 = xx.auth_handler(handler, xx.auth_context, self.headers, args)
+                           
+                       if tt2 is not None:
+                           # Expect (T|F, name, data)
+                           user = tt2[1]
 
-                          if tt2[0] == False:
-                             err = {
-                                'errcode': 3,
-                                'user': user,
-                                'msg': "authentication failure"
-                                }
-                             if len(tt2) == 3:
-                                err['data'] = tt2[2]
+                           if tt2[0] == False:
+                               err = {
+                                   'errcode': 3,
+                                   'user': user,
+                                   'msg': "authentication failure"
+                                   }
+                               if len(tt2) == 3:
+                                   err['data'] = tt2[2]
 
-                             handler = xx.internalErr(401, [err])
+                               handler = xx.internalErr(401, [err])
 
                     self.respond(args, handler)
 
@@ -418,6 +423,9 @@ class WebF:
         self.cors = self.wargs['cors'] if 'cors' in self.wargs else None
 
         self.log_handler = None   # optional
+        self.log_context = None   # optional
+        self.auth_handler = None   # optional
+        self.auth_context = None   # optional
 
         self.registerFunction("__help", self.internalHelp, {"parent":self});
 
@@ -427,8 +435,18 @@ class WebF:
     def registerFunction(self, name, handler, context):
         self.fmap[name] = (handler,context)
 
-    def registerLogger(self, handler):
+
+
+
+    def registerLogger(self, handler, context):
         self.log_handler = handler
+        self.log_context = context
+
+
+
+    def registerAuthentication(self, handler, context):
+        self.auth_handler = handler
+        self.auth_context = context
 
 
     def go(self):

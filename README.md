@@ -358,7 +358,7 @@ If a logger is registered thusly:
 ```
     websvc.registerLogger(logF)
 ```
-then function `logF` will be called upon completion each time the service is
+then regular python function `logF` will be called upon completion each time the service is
 hit (successful or not) with the 
 following dict as an argment (here filled in with representative examples):
 ```
@@ -527,21 +527,42 @@ main(sys.argv)
 
 Authentication
 --------------
-WebF has no authentication spec per-se.   Instead, it is delegated to
-an optional method in the class named `authenticate`.
+WebF has no authentication spec per-se.   Authentication can omitted entirely
+(not really recommended) or implemented either by a server-wide
+authentication function or by a method in each function class named `authenticate`.
+If the server-wide authentication function is registered, it will be called 
+for all functions registered.  If an individual function authentication
+method exists, it supercedes the server-wide authentication function if one
+so exists.  The server-wide authentication function is registered thusly:
+```
+    websvc.registerAuthentication(myAuthFunction, context)
+```
+where `myAuthFunction` is a regular python function (not a class) that is called as follows:
+```
+    def myAuthFunction(functionClassInstance, context, header, args):
+        ...
+        return (T_or_F, username [, optional dict of err data])
+```
+`functionClassInstance` is an instance of the function that will be permitted
+to continue with the start/next/end call chain if `myAuthFunction` is successful (more on this in a moment).  `context` is any material that you wish passed to 
+`myAuthFunction`.
+
+The individual function authentication method signature is nearly the same as the 
+server-wide version except it requires no context, the assumption being context
+will be taken care of in the `registerFunction` call:
 ```
 class Func1:
     def authenticate(self, headers, args):
         return (T_or_F, username [, optional dict of err data])
 ```
-`authenticate` is passed the headers and args and the method is free
+Both `myAuthFunction` and `authenticate` are passed the headers and args and the method is free
 to perform what tasks necessary, along with material that might have been
 set up during `__init__`, to authenticate and allow the rest of the call
 to continue.  A very simple
 example is basic authentication. where header `Authorization` would have
 the value `Basic <base64 enconding of name:password>`.
 
-The method must return a tuple with either 2 or 3 elements:
+The function or method must return a tuple with either 2 or 3 elements:
 
 1. True or False.   Indicates success or failure
 2. Username.  Whatever user was trying to authenticate, as best as can be
