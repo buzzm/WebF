@@ -24,8 +24,8 @@ class Func1:
     
 
     def authenticate(self, headers, args):
-        return (True, "buzz")
-        #return (False, "buzz", {"msg":"failed to login"})
+        #return (True, "buzz")
+        return (False, "buzz", {"msg":"failed to login"})
 
     def start(self, cmd, hdrs, args, rfile):
         print "START!"
@@ -54,10 +54,9 @@ class Func1:
 #        pass
 
 
-
 class Func2:
     def __init__(self, context):
-        pass
+        self.context = context;
         
     def help(self):
         return {"type":"simple",
@@ -97,10 +96,15 @@ class Func2:
 def logF(doc):
     print doc
 
+def authF(instance, hdrs, args):
+    print "HERE!"
+    print instance
+
 def main():
 
     webfArgs = {
         "port":7778,
+        "addr":"0.0.0.0",
 #        "sslPEMKeyFile":"/Users/buzz/git/Webf/newkey.pem",
         "cors":'*'
         }
@@ -111,6 +115,7 @@ def main():
     r.registerFunction("echo", Func2, None);
 
     r.registerLogger(logF)
+    r.registerAuthentication(authF)
 
     print "ready"
 
