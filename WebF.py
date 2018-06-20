@@ -329,10 +329,10 @@ class WebF:
                        # Go for local override first...
                        authMethod = getattr(handler, "authenticate", None)
                        if callable(authMethod):
-                          tt2 = authMethod(self.headers, args)
+                          tt2 = authMethod(self.address_string(), self.headers, args)
 
                        elif xx.auth_handler is not None:
-                          tt2 = xx.auth_handler(handler, xx.auth_context, self.headers, args)
+                          tt2 = xx.auth_handler(handler, xx.auth_context, self.address_string(), self.headers, args)
                            
                        if tt2 is not None:
                            # Expect (T|F, name, data)
@@ -341,7 +341,7 @@ class WebF:
                            if tt2[0] == False:
                                err = {
                                    'errcode': 3,
-                                   'user': user,
+                                   'user': user,  # OK to be None
                                    'msg': "authentication failure"
                                    }
                                if len(tt2) == 3:

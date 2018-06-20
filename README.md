@@ -539,7 +539,7 @@ so exists.  The server-wide authentication function is registered thusly:
 ```
 where `myAuthFunction` is a regular python function (not a class) that is called as follows:
 ```
-    def myAuthFunction(functionClassInstance, context, header, args):
+    def myAuthFunction(functionClassInstance, context, caller, header, args):
         ...
         return (T_or_F, username [, optional dict of err data])
 ```
@@ -552,10 +552,12 @@ server-wide version except it requires no context, the assumption being context
 will be taken care of in the `registerFunction` call:
 ```
 class Func1:
-    def authenticate(self, headers, args):
+    def authenticate(self, caller, headers, args):
         return (T_or_F, username [, optional dict of err data])
 ```
-Both `myAuthFunction` and `authenticate` are passed the headers and args and the method is free
+Both `myAuthFunction` and `authenticate` are passed the caller network name as
+interpreted by the `HTTPBaseHTTPRequestHander.address_string()`, the HTTP headers,
+and args parsed from the URL.  The method is free
 to perform what tasks necessary, along with material that might have been
 set up during `__init__`, to authenticate and allow the rest of the call
 to continue.  A very simple
@@ -566,7 +568,7 @@ The function or method must return a tuple with either 2 or 3 elements:
 
 1. True or False.   Indicates success or failure
 2. Username.  Whatever user was trying to authenticate, as best as can be
-determined by the method.
+determined by the method.  Can be None.
 3. (Optional) dictionary of data to be used in the err message upon failure.
 Is not used in the event of success.
 
@@ -583,7 +585,15 @@ For example, authentication on one function can provide a time-bounded
 session cookie that could be reused by different peer functions within the
 same service.
 
-
+Some services may wish to authenticate most functions but leave a small number
+unauthenticated.  The strategy here would be to set up a server-wide authentication
+function but then in the unauthenticated functions, supply a pass-thru `authenticate`
+function:
+```
+class OKNotToHaveAuthentication:
+    def authenticate(self, caller, headers, args):
+        return (True, None)
+```
 
 License
 -------

@@ -41,6 +41,26 @@ class Func1:
             yield doc
 
 
+class Func2:
+    def __init__(self, context):
+        self.parent = context['parent']
+        self.cursor = None
+
+    def help(self):
+        return {"desc":"foo"}
+
+    def authenticate(context, caller, hdrs, args):
+        print "context:", context
+        print "caller:", caller
+        print "hdrs:",hdrs
+        print "args:",args
+        return (True, None)
+
+
+    def start(self, cmd, hdrs, args, rfile):
+        return (200, {"corn":"dog"})
+
+
 class MyProgram:
     def __init__(self, rargs):
         self.rargs = rargs
@@ -62,6 +82,8 @@ class MyProgram:
         # Give the Func1 access to the complete parent!
         self.websvc.registerFunction("getProducts", Func1, {"parent": self})
 
+        self.websvc.registerFunction("foo", Func2, {"parent": self})
+
         # Give the authenticator access to the complete parent!
         self.websvc.registerAuthentication(self.authF, self)
 
@@ -78,9 +100,10 @@ class MyProgram:
     #  framework.   WebF will be calling it as if it is a standalone
     #  function so it must be declared staticmethod here:
     @staticmethod
-    def authF(instance, context, hdrs, args):
+    def authF(instance, context, caller, hdrs, args):
         print "instance:",instance
         print "context:", context
+        print "caller:", caller
         print "hdrs:",hdrs
         print "args:",args
         #return (False, "buzz", {"msg":"failed to login"})
