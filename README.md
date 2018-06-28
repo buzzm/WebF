@@ -105,20 +105,23 @@ websvc = WebF.WebF({"port": 8080,
                     "cors":'*'})
 ```
 
+
+
 Each server can have many functions associated with it.  
-A function is named by the first path component in the URL, e.g. function `foo`
-would be
+A function is registered in the `registerFunction` method and establishes
+the first `n` components of path in the URL as a map to a handler.  A simple
+example:
 ```
       http://machine:port/foo
 ```
-All other path components following the first are considered RESTful arguments
-to the function and are handled as described in `args` below.
-Functions are created by binding the function name (a string) to a class (*not* the instance,
-the class; not the class name, the class!) plus "context" or variables to pass to the function class upon
-construction:
+would be handled by the following function registration:
 ```
 websvc.registerFunction("foo", Func1, context)
 ```
+
+Registration binds the function name (a string) to a class (*not* the instance,
+the class; not the class name, the class!) plus "context" or variables to pass
+to the function class upon construction.
 This approach differs slightly from Java servlets where typically the 
 servlet is instantiated only once in the lifetime of the container and
 shared across multiple threads.  This requires special attention to not
@@ -126,6 +129,19 @@ putting anything in class scope (without special handling) to prevent
 concurrency issues.   WebF is simpler: when the function is called, a
 new handler instance is created.  Shared material or material that must
 persist across calls, if desired, can be accessed/managed via the context.  
+
+More sophisticated designs might call for versioning:
+```
+      http://machine:port/v1/foo
+```
+This might be handled by the following function registration:
+```
+# Note the "v1/foo" path!
+websvc.registerFunction("v1/foo", Func1, context)
+```
+
+All other path pieces following the registered pieces are considered RESTful arguments
+to the function and are handled as described in `args` below.
 
 The class must support these methods:
 * __init__:  Is passed context as argument.
@@ -275,6 +291,10 @@ GET thing?args='{"filter":{"$or":[{"color":"red"},{"size":{"$lt":8}}]}, "fields"
 GET thing/E123?args='{"fields":["id","maker"]}'
 ```
 
+
+
+
+
 `fargs` are framework-level args and are common across ALL functions
 in ANY service that is deployed.  This is an area to be developed.
 
@@ -356,7 +376,7 @@ Logging
 -------
 If a logger is registered thusly:
 ```
-    websvc.registerLogger(logF)
+    websvc.registerLogger(logF, context)
 ```
 then regular python function `logF` will be called upon completion each time the service is
 hit (successful or not) with the 
@@ -369,6 +389,7 @@ following dict as an argment (here filled in with representative examples):
  'params': {'args': '{"startTime":{"$date":"2017-01-02T19:00:06.000Z"}}'},
  'user': 'ANONYMOUS',
  'func': 'helloWorld',
+ 'context': whatever_you_registered_ok_for_None
 }
 ```
 

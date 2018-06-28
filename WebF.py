@@ -60,25 +60,27 @@ class WebF:
 
 
     class HTTPHandler(BaseHTTPRequestHandler):
+        #  Each command action on HTTP gets turned into a callable
+        #  method here, e.g. curl -X GET is bound to do_GET.  There is no
+        #  restriction; curl -X CORN will map to do_CORN and if do_CORN is not
+        #  implemented here, then BaseHTTPRequestHandler will return code 501
+        #  unsupported method.
+
         def do_GET(self):
-            (func,params) = self.parse(self.path)
-            self.call(func, params)
+            self.call(self.path)
 
         def do_POST(self):
-            (func,params) = self.parse(self.path)
-            self.call(func, params)
+            self.call(self.path)
 
         def do_PUT(self):
-            (func,params) = self.parse(self.path)
-            self.call(func, params)
+            self.call(self.path)
 
         def do_PATCH(self):
-            (func,params) = self.parse(self.path)
-            self.call(func, params)
+            self.call(self.path)
 
         def do_DELETE(self):
-            (func,params) = self.parse(self.path)
-            self.call(func, params)
+            self.call(self.path)
+
 
         def log_message(self, format, *args):
            xx = self.server.parent
@@ -87,9 +89,7 @@ class WebF:
 
 
 
-
         def parse(self, reqinfo):
-            #print "parse ", reqinfo
             params = {}
             if '?' in reqinfo:
                 func, params = reqinfo.split('?', 1)
@@ -99,17 +99,9 @@ class WebF:
             else:
                 func = reqinfo
 
-            #func = func.strip('/')
-
-            qq = func.split('/')
-            qq.pop(0)  # URL always has leading / so toss it...
-
-            func = qq.pop(0)
-
-            if len(qq) > 0:  
-                # is function/RESTarg
-                params['_'] = qq
-
+            #  req comes in with leading /, always.  Eat it:
+            func = func[1:]
+            
             return ((func, params))
         
 
@@ -245,7 +237,7 @@ class WebF:
                     
 
 
-        def call(self, func, params):
+        def call(self, path):
             xx = self.server.parent
 
             respCode    = 200
@@ -258,11 +250,35 @@ class WebF:
 
                 ss = datetime.datetime.now()
 
+                # Extract params (after the '?') from the rest of it:
+                prefunc,params = self.parse(path)
+
                 # The Exception:
-                # If func = "help" then it's "__help"  It is The One 
+                # If prefunc = "help" then it's "__help"  It is The One 
                 # function that bridges internal and external handling.
-                if func == "help":
-                    func = "__help"
+                if prefunc == "help":
+                    prefunc = "__help"
+
+                
+                func = None
+                restful = None
+
+                #  Basically, do a longest-first match...
+                for fname,v in sorted(xx.fmap.iteritems(), key=lambda (k,v): (len(k),k), reverse=True):
+                    lname = len(fname)
+                    frag = prefunc[:lname]
+                    #print "[%s] %d [%s] %d" % (fname,lname,frag,len(frag))
+                    if fname == frag:
+                        func = fname
+                        restful = prefunc[lname+1:]  # hop over the /
+                        if restful == "":
+                            restful = None
+                        break
+                
+                if restful is not None:
+                    qq = restful.split('/')
+                    params['_'] = qq
+
 
                 #
                 # START PRELIM
@@ -370,7 +386,9 @@ class WebF:
                          "stime": ss,
                          "etime": ee,
                          "millis": diffms,
-                         "status": respCode})
+                         "status": respCode,
+                         "context": xx.log_context
+                         })
 
 
             except Exception, e:
