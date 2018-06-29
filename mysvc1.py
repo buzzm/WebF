@@ -4,6 +4,9 @@
 
 import WebF
 
+import datetime
+from decimal import Decimal
+
 class Func1:
     def __init__(self, context):
         self.maxCount = 0
@@ -23,9 +26,9 @@ class Func1:
                 ]}
     
 
-    def authenticate(self, headers, args):
-        #return (True, "buzz")
-        return (False, "buzz", {"msg":"failed to login"})
+    def authenticate(self, caller, hdrs, args):
+        return (True, "buzz")
+        #return (False, "buzz", {"msg":"failed to login"})
 
     def start(self, cmd, hdrs, args, rfile):
         print "START!"
@@ -45,8 +48,10 @@ class Func1:
 
 
     def next(self):
+        dd = datetime.datetime.now()
+        amt = Decimal("23.2")
         for n in range(0, self.maxCount):
-            doc = {"name":"chips", "type":n}
+            doc = {"name":"chips", "type":n, "date":dd, "amt":amt}
             yield doc
 
 #    No need to specify if not being used...
@@ -91,12 +96,47 @@ class Func2:
 
 
 
+class Func22:
+    def __init__(self, context):
+        self.context = context;
+        
+    def help(self):
+        return {"type":"simple", "desc":"Func22" }
+
+    def start(self, cmd, hdrs, args, rfile):
+        print "CMD:", cmd
+        print hdrs
+
+        for k in args:
+            value = args[k]
+            print k, value.__class__.__name__, value
+
+        if '_' in args:
+            print "RESTful args: ", args['_']
+
+        length = 0
+        clenhdr = hdrs.getheader('content-length')
+        if clenhdr != None:
+            length = int(clenhdr)
+
+        content = None
+
+        if length > 0:
+            print "slurp len", length
+            content = rfile.read(length)
+
+        print content
+
+        return (200, None)
 
 
-def logF(doc):
+
+
+
+def logF(doc, context):
     print doc
 
-def authF(instance, hdrs, args):
+def authF(instance, context, caller, hdrs, args):
     print "HERE!"
     print instance
 
@@ -114,8 +154,10 @@ def main():
     r.registerFunction("helloWorld", Func1, None);
     r.registerFunction("echo", Func2, None);
 
-    r.registerLogger(logF)
-    r.registerAuthentication(authF)
+    r.registerFunction("v2/echo", Func22, None);
+
+#    r.registerLogger(logF, None)
+#    r.registerAuthentication(authF, None)
 
     print "ready"
 
