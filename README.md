@@ -90,7 +90,7 @@ Overview
 WebF starts a web server on the host machine at the designated port, by 
 default 7778
 ```
-websvc = WebF.WebF()
+websvc = WebF.WebF({dict of options})
 ```
 These options are available upon construction:
 ```
@@ -154,11 +154,15 @@ after the function name are placed into an array and assigned to the special
 argument name `_` in the `args` dictionary.
   * rfile:  The input stream if this is a PUT, POST, or PATCH
 
-It must return a tuple containing the response code and a single dict that will be
-sent to the client.  If the dict is `None`, only the response code is sent.
-This allows simple functions to package all logic in the start method, 
-such as doing database lookups and transforms, and returning status and
-a result doc.
+`start` must return a tuple containing 3 items: the HTTP response code, a dict, and a boolean
+True or False to indicate that `next` and `end` should be executed.  The dict can
+be `None`.  The framework does not interpret the meaning of response codes; it is the
+responsibility of the function writer to pass the combination of code, data (in the dict),
+and "keep going" flag.  The "keep going" flag is necessary because the framework will
+automatically try to execute `next` and `end` if they exist regardless of the HTTP
+response code.   Note that it is a noop if the keep going flag is set True and there is no
+`next` or `end` method.
+
 
 The class can optionally provide these methods:
 * next:  Called iteratively as necessary for the function to vend units of
@@ -435,8 +439,10 @@ class Func1:
         self.cursor = self.parent.db['product'].find(pred)
         
         # Assume all OK; normally we'd catch exceptions and such.  We'll
-        # let the next() method iterate over the cursor:
-        return (200, None)
+        # let the next() method iterate over the cursor, so no need
+	# to return anything here except a good HTTP code and setting the
+	# keep-going flag to True
+        return (200, None, True)
 
     def next(self):
         for doc in self.cursor:
@@ -491,7 +497,7 @@ class Func1:
         
         # Assume all OK; normally we'd catch exceptions and such.  We'll
         # let the next() method iterate over the cursor:
-        return (200, None)
+        return (200, None, True)
 
     def next(self):
         for doc in self.cursor:

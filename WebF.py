@@ -26,7 +26,7 @@ class WebF:
             return {}
 
         def start(self, cmd, hdrs, args, rfile):
-           return (200, None)
+           return (200, None, True)
 
         def next(self):
             for fname in self.parent.fmap:
@@ -48,7 +48,7 @@ class WebF:
             self.errs = errs
 
         def start(self, cmd, hdrs, args, rfile):
-           return (self.respcode, None)
+           return (self.respcode, None, True)
         
         def next(self):
             for err in self.errs:
@@ -188,7 +188,7 @@ class WebF:
 
            # Give start() a chance to do something; it is required mostly
            # because it must provide a response code.
-           (respCode, hdrdoc) = handler.start(self.command, self.headers, args, self.rfile)
+           (respCode, hdrdoc, keepGoing) = handler.start(self.command, self.headers, args, self.rfile)
 
            self.send_response(respCode)
 
@@ -210,7 +210,6 @@ class WebF:
 
            # else regular ol' json
 
-
            self.send_header('Content-type', contentType)
 
            if self.server.parent.cors is not None:
@@ -220,6 +219,9 @@ class WebF:
            if hdrdoc != None:
 #                 mson.write(self.wfile, hdrdoc, jfmt)
               theWriter(self.wfile, hdrdoc, jfmt)
+
+           if keepGoing is False:
+               return
 
            mmm = getattr(handler, "next", None)
            if callable(mmm):              
