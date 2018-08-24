@@ -344,13 +344,26 @@ class WebF:
 
                     else:
                        tt2 = None
+
+                       # Low impact so get it out of the way, even if
+                       # unused...
+                       clrt = self.client_address  # not a func, a tuple!
+                       clrh = {
+                           "name": self.address_string(),
+                           "ip": clrt[0],
+                           "port": clrt[1]
+                           }
+
                        # Go for local override first...
                        authMethod = getattr(handler, "authenticate", None)
+
                        if callable(authMethod):
-                          tt2 = authMethod(self.address_string(), self.headers, args)
+                           print "dddddd"
+                           tt2 = authMethod(clrh, self.headers, args)
 
                        elif xx.auth_handler is not None:
-                          tt2 = xx.auth_handler(handler, xx.auth_context, self.address_string(), self.headers, args)
+
+                          tt2 = xx.auth_handler(handler, xx.auth_context, clrh, self.headers, args)
                            
                        if tt2 is not None:
                            # Expect (T|F, name, data)
@@ -380,17 +393,24 @@ class WebF:
                    tdelta = ee - ss
                    diffms = int(tdelta.microseconds/1000)
 
+                   clrt = self.client_address  # not a func, a tuple!
+                   clrh = {
+                       "name": self.address_string(),
+                       "ip": clrt[0],
+                       "port": clrt[1]
+                       }
+
                    xx.log_handler({
-                         "addr": self.address_string(),
+                         "caller": clrh,
                          "user": user,
                          "func": func,
                          "params": params,
                          "stime": ss,
                          "etime": ee,
                          "millis": diffms,
-                         "status": respCode,
-                         "context": xx.log_context
-                         })
+                         "status": respCode
+                         }, xx.log_context
+                                  )
 
 
             except Exception, e:

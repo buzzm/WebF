@@ -582,9 +582,15 @@ class Func1:
     def authenticate(self, caller, headers, args):
         return (T_or_F, username [, optional dict of err data])
 ```
-Both `myAuthFunction` and `authenticate` are passed the caller network name as
-interpreted by the `HTTPBaseHTTPRequestHander.address_string()`, the HTTP headers,
-and args parsed from the URL.  The method is free
+
+Both `myAuthFunction` and `authenticate` are passed a dict of the HTTP headers,
+a dict of the args parsed from the URL, and a dict `caller` that 
+contains the following members:
+* name:  A string as interpreted by `HTTPBaseHTTPRequestHander.address_string()`
+* ip:    A string, the IP provided eg. `10.23.45.118`
+* port:  An int, the outbound port of the caller
+
+The method is free
 to perform what tasks necessary, along with material that might have been
 set up during `__init__`, to authenticate and allow the rest of the call
 to continue.  A very simple
