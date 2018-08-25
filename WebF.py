@@ -358,7 +358,6 @@ class WebF:
                        authMethod = getattr(handler, "authenticate", None)
 
                        if callable(authMethod):
-                           print "dddddd"
                            tt2 = authMethod(clrh, self.headers, args)
 
                        elif xx.auth_handler is not None:
