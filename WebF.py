@@ -384,7 +384,20 @@ class WebF:
 
                 ee = datetime.datetime.now()
 
+
+                loghandler = None
+                uselogcontext = True
+
                 if xx.log_handler != None:
+                    loghandler = xx.log_handler
+
+                # Function-specific overrides:
+                logMethod = getattr(handler, "log", None)
+                if callable(logMethod):
+                    loghandler = logMethod
+                    uselogcontext = False
+
+                if loghandler != None:
                    if user == None:
                       user = "ANONYMOUS"
 
@@ -398,8 +411,8 @@ class WebF:
                        "ip": clrt[0],
                        "port": clrt[1]
                        }
-
-                   xx.log_handler({
+                   
+                   info = {
                          "caller": clrh,
                          "user": user,
                          "func": func,
@@ -408,8 +421,12 @@ class WebF:
                          "etime": ee,
                          "millis": diffms,
                          "status": respCode
-                         }, xx.log_context
-                                  )
+                         }
+
+                   if uselogcontext == True:
+                       loghandler(info, xx.log_context)
+                   else:
+                       loghandler(info)
 
 
             except Exception, e:

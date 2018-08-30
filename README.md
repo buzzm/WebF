@@ -383,19 +383,29 @@ If a logger is registered thusly:
     websvc.registerLogger(logF, context)
 ```
 then regular python function `logF` will be called upon completion each time the service is
-hit (successful or not) with the 
-following dict as an argment (here filled in with representative examples):
+hit (successful or not) as `logF(info, context)` where `info` is a 
+dict with useful data (here filled in with representative examples):
 ```
-{'respCode': 200,
+{'status': 200,
+ 'caller': {'name':'1.0.0.127.in-addr.arpa','ip':'127.0.0.1','port':42321},
  'stime': datetime.datetime(2017, 1, 29, 10, 56, 13, 374307)}
  'etime': datetime.datetime(2017, 1, 29, 10, 56, 13, 374909), 
  'millis': 12,
  'params': {'args': '{"startTime":{"$date":"2017-01-02T19:00:06.000Z"}}'},
  'user': 'ANONYMOUS',
- 'func': 'helloWorld',
- 'context': whatever_you_registered_ok_for_None
+ 'func': 'helloWorld'
 }
 ```
+
+Logging can also be locally overridden in the function by supplying a `log`
+method:
+```
+class Func1:
+    def log(self, info):
+    	print info
+```
+In this case, context is not used.
+
 
 
 Context
