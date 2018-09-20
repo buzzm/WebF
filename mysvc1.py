@@ -11,7 +11,10 @@ class Func1:
     def __init__(self, context):
         self.maxCount = 0
         pass
-        
+
+    def log(self, info):
+        print "class override log:", info
+
     def help(self):
         return {"type":"simple",
                 "desc":"A function that returns something.",
@@ -26,9 +29,9 @@ class Func1:
                 ]}
     
 
-    def authenticate(self, caller, hdrs, args):
-        return (True, "buzz")
-        #return (False, "buzz", {"msg":"failed to login"})
+#    def authenticate(self, caller, hdrs, args):
+#        return (True, "buzz")
+
 
     def start(self, cmd, hdrs, args, rfile):
         print "START!"
@@ -44,7 +47,7 @@ class Func1:
         if '_' in args:
             print "RESTful args: ", args['_']
 
-        return (200, None)
+        return (200, None, True)
 
 
     def next(self):
@@ -90,9 +93,10 @@ class Func2:
             print "slurp len", length
             content = rfile.read(length)
 
-        print content
+            with open("/tmp/myFile", 'w') as f:
+                f.write(content)
 
-        return (200, None)
+        return (200, None, False)
 
 
 
@@ -134,11 +138,12 @@ class Func22:
 
 
 def logF(doc, context):
+    print "my log function:", context
     print doc
 
 def authF(instance, context, caller, hdrs, args):
-    print "HERE!"
     print instance
+    print caller
 
 def main():
 
@@ -152,12 +157,14 @@ def main():
     r = WebF.WebF(webfArgs)
 
     r.registerFunction("helloWorld", Func1, None);
+
     r.registerFunction("echo", Func2, None);
 
     r.registerFunction("v2/echo", Func22, None);
 
-#    r.registerLogger(logF, None)
-#    r.registerAuthentication(authF, None)
+#    r.registerLogger(logF, "log context")
+
+    r.registerAuthentication(authF, None)
 
     print "ready"
 
