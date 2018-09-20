@@ -150,7 +150,7 @@ def main():
     webfArgs = {
         "port":7778,
         "addr":"0.0.0.0",
-#        "sslPEMKeyFile":"/Users/buzz/git/Webf/newkey.pem",
+#        "sslPEMKeyFile":"/path/to/yourKey.pem",
         "cors":'*'
         }
 
