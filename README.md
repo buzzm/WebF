@@ -29,7 +29,12 @@ class Func1:
     def start(self, cmd, hdrs, args, rfile):
         # maxCount must be in args because it is required:
         self.maxCount = args['maxCount']
-        return (200, None)
+
+	# Return:
+	#   200 ("ok")
+	#   None (we will let next() vend each doc)
+	#   True (tell WebF to keep going with next() )
+        return (200, None, True)
         
     def next(self):
         for n in range(0, self.maxCount):
