@@ -79,11 +79,13 @@ parser.  BSON is an ideal "code-to-code" format because of performance and
 precise preservation of types like datetimes, decimal128, binary, and 32
 vs. 64 bit integers.  Output format is set in an industry-standard way by
 specifying the `Accept` header on the inbound call as follows:
-```
-application/json    for json
-application/ejson   for ejson
-application/bson    for bson
-```
+* `application/json` for json.
+* `application/ejson` for ejson
+* `application/bson` for bson
+In addition, json and ejson output can be sent in CR-delimited form
+with the `boundary=LF` attribute.  More
+on this in the section following basic class and function setup.
+
 4. Automatic handling of help.  Calling http://machine:port/help will return
 the set of functions and descriptions and arguments to the caller.   
 5. Easy, flexible integration to RESTful callers.
@@ -186,6 +188,30 @@ The class does not have to deal with encoding or output formats.  `start`,
 like arrays and `Decimal` and `datetime.datetime` -- i.e. you don't have to
 bother with converting dates into ISO8601 strings.  The WebF framework will
 convert the data to the format specified in the `Accept` header.
+
+The class also does not have to deal with "array wrapping" of the returned 
+material.  The class need only construct individuals dicts.  The WebF
+framework will appropriately wrap the outbound material based on the
+`Accept` header as follows:
+* `application/json or ejson`:  A leading `[` will be emitted before the first doc
+and a trailing `]` emitted after the last doc.  If no docs are created in the
+function, this becomes a valid array of length 0 i.e. `[]`.  This means the
+caller must slurp/parse the entire response as a potentially large array and
+only then begin to operate on the individual items within.  It also means 
+that simple functions that emit a single doc are still always wrapped in
+an array.
+* `application/json or ejson; boundary=LF|CR`:  NO leading `[` or trailing
+`]` will be emitted.  Each doc is vended as a "standalone" JSON object followed
+by a CR.  The caller can now use so-called CR-delimited JSON conventions and
+read the response line by line, parsing the objects one at a time.  This is
+potentially much more efficient for the caller because it avoids "high 
+watermarking" in creating a large JSON array only to turn it into something else.  It also means that simple functions that emit a single doc can be easily
+parsed directly into a JSON object without the wrapper array.
+* `application/bson`:  BSON has built-in length so there is no concept of an
+additional boundary; it already acts as if it has a boundary.  Multiple docs
+streamed "back to back" as BSON can be easily consumed by utils provided in
+the BSON libraries for doing so; thus it is never necessary to wrap BSON in
+an outer BSON array.
 
 The class optionally may provide an `authenticate` method.  See 
 Authentication below for more.

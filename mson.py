@@ -182,6 +182,18 @@ class mson:
             elif isinstance(v, Binary):
                 q = base64.b64encode(v);
                 emit(spcs,  "{\"$binary\":\"%s\", \"$type\":\"00\"}" % q )
+
+            elif isinstance(v, Decimal):
+                if fmt == mson.MONGO:
+                    emit(spcs,  "{\"$numberDecimal\":\"%s\"}" % v )
+                else:
+                    emit(spcs, v)
+
+            elif isinstance(v, bson.decimal128.Decimal128):
+                if fmt == mson.MONGO:
+                    emit(spcs,  "{\"$numberDecimal\":\"%s\"}" % v )
+                else:
+                    emit(spcs, v)
          
             elif isinstance(v, unicode):
                 q = v.encode('ascii', 'replace')

@@ -192,51 +192,81 @@ class WebF:
 
            self.send_response(respCode)
 
-           # Regular ol' json is the default:
-           contentType = 'application/json'
-           jfmt = mson.PURE
-           theWriter = mson.write
 
            if "Accept" in self.headers:
-              fmt = self.headers['Accept']
+               ahdr = self.headers['Accept']
+           else:
+               ahdr = 'application/json'
 
-              if fmt == "application/bson":
-                 contentType = 'application/bson'
-                 theWriter = self.bsonWriter
+           boundary = None
 
-              else:
-                 if fmt == "application/ejson":
-                    jfmt = mson.MONGO
+           gg = [ x.strip() for x in ahdr.split(';')]
 
-           # else regular ol' json
+           fmt = gg[0]
 
-           self.send_header('Content-type', contentType)
+           if fmt == "application/bson":
+               jfmt = None
+               contentType = 'application/bson'
+               theWriter = self.bsonWriter
+               boundary = "_"  # trick the boundary logic
+               
+           else:  # either json or ejson
+               theWriter = mson.write
+
+               if fmt == "application/json":
+                   jfmt = mson.PURE
+
+               if fmt == "application/ejson":
+                   jfmt = mson.MONGO
+                   
+               # json and ejson support boundary=[LF,CR]
+               if len(gg) > 1:
+                   for item in gg:
+                       attr = item.split("=")
+                       if attr[0] == "boundary":
+                           if attr[1] in ['LF','CR']:
+                               boundary = "LF"
+                           else:
+                               print "unsupported json boundary" # TBD
+
+
+           self.send_header('Content-type', ahdr)
 
            if self.server.parent.cors is not None:
               self.send_header('Access-Control-Allow-Origin', self.server.parent.cors)
            self.end_headers()
 
+           if boundary is None:
+               self.wfile.write('[')
+          
            if hdrdoc != None:
 #                 mson.write(self.wfile, hdrdoc, jfmt)
               theWriter(self.wfile, hdrdoc, jfmt)
 
            if keepGoing is False:
+               if boundary is None:
+                   self.wfile.write(']')
                return
 
            mmm = getattr(handler, "next", None)
            if callable(mmm):              
               for r in handler.next():
 #                 mson.write(self.wfile, r, jfmt)
-                 theWriter(self.wfile, r, jfmt)
+                  if boundary is None:
+                      self.wfile.write(',')
+                  theWriter(self.wfile, r, jfmt)
 
            mmm = getattr(handler, "end", None)
            if callable(mmm):              
               footerdoc = handler.end()
               if footerdoc != None:
 #                 mson.write(self.wfile, footerdoc, jfmt)
-                 theWriter(self.wfile, footerdoc, jfmt)
+                  if boundary is None:
+                      self.wfile.write(',')
+                  theWriter(self.wfile, footerdoc, jfmt)
 
-                    
+           if boundary is None:
+               self.wfile.write(']')                    
 
 
         def call(self, path):
