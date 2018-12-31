@@ -199,6 +199,7 @@ class WebF:
                ahdr = 'application/json'
 
            boundary = None
+           jfmt = mson.PURE
 
            gg = [ x.strip() for x in ahdr.split(';')]
 
@@ -240,7 +241,6 @@ class WebF:
                self.wfile.write('[')
           
            if hdrdoc != None:
-#                 mson.write(self.wfile, hdrdoc, jfmt)
               theWriter(self.wfile, hdrdoc, jfmt)
 
            if keepGoing is False:
@@ -251,7 +251,6 @@ class WebF:
            mmm = getattr(handler, "next", None)
            if callable(mmm):              
               for r in handler.next():
-#                 mson.write(self.wfile, r, jfmt)
                   if boundary is None:
                       self.wfile.write(',')
                   theWriter(self.wfile, r, jfmt)
@@ -260,7 +259,6 @@ class WebF:
            if callable(mmm):              
               footerdoc = handler.end()
               if footerdoc != None:
-#                 mson.write(self.wfile, footerdoc, jfmt)
                   if boundary is None:
                       self.wfile.write(',')
                   theWriter(self.wfile, footerdoc, jfmt)
