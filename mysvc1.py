@@ -52,7 +52,8 @@ class Func1:
 
     def next(self):
         dd = datetime.datetime.now()
-        amt = Decimal("23.2")
+        #amt = Decimal("23.2")
+        amt = 23.2
         for n in range(0, self.maxCount):
             doc = {"name":"chips", "type":n, "date":dd, "amt":amt}
             yield doc

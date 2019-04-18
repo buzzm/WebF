@@ -239,9 +239,12 @@ class WebF:
 
            if boundary is None:
                self.wfile.write('[')
-          
+
+           wroteOne = False
+
            if hdrdoc != None:
               theWriter(self.wfile, hdrdoc, jfmt)
+              wroteOne = True
 
            if keepGoing is False:
                if boundary is None:
@@ -252,16 +255,23 @@ class WebF:
            if callable(mmm):              
               for r in handler.next():
                   if boundary is None:
-                      self.wfile.write(',')
+                      if wroteOne == True:
+                          self.wfile.write(',')
+
                   theWriter(self.wfile, r, jfmt)
+                  wroteOne = True
+
 
            mmm = getattr(handler, "end", None)
            if callable(mmm):              
               footerdoc = handler.end()
               if footerdoc != None:
                   if boundary is None:
-                      self.wfile.write(',')
+                      if wroteOne == True:
+                          self.wfile.write(',')
+
                   theWriter(self.wfile, footerdoc, jfmt)
+                  wroteOne = True
 
            if boundary is None:
                self.wfile.write(']')                    

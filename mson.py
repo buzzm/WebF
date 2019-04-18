@@ -170,7 +170,7 @@ class mson:
         #    {\"server\": \"julia\", \"bob \\\"and\\\" danA\"}
         #
         def groomJSONStr(instr):
-            return instr.replace('\\','\\\\').replace('"', '\\\"')
+            return instr.replace('\\','\\\\').replace('"', '\\\"').replace("\n","\\n")
 
         def emitItem(lvl, ith, v):
             spcs = ""

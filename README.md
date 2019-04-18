@@ -82,6 +82,7 @@ specifying the `Accept` header on the inbound call as follows:
 * `application/json` for json.
 * `application/ejson` for ejson
 * `application/bson` for bson
+
 In addition, json and ejson output can be sent in CR-delimited form
 with the `boundary=LF` attribute.  More
 on this in the section following basic class and function setup.
