@@ -85,7 +85,7 @@ class WebF:
         def log_message(self, format, *args):
            xx = self.server.parent
            if xx.log_handler == None:
-              print "%s - - [%s] %s" % (self.address_string(),self.log_date_time_string(),format%args)
+              print("%s - - [%s] %s" % (self.address_string(),self.log_date_time_string(),format%args))
 
 
 
@@ -193,31 +193,36 @@ class WebF:
            self.send_response(respCode)
 
 
-           if "Accept" in self.headers:
-               ahdr = self.headers['Accept']
-           else:
-               ahdr = 'application/json'
-
+           fmt = 'application/json'  # default
+           afmt = fmt
            boundary = None
            jfmt = mson.PURE
+           theWriter = mson.write
 
-           gg = [ x.strip() for x in ahdr.split(';')]
+           #  We expect simple
+           #  Accept: application/json,json 
+           #  No fancy alternative and q factor stuff.
 
-           fmt = gg[0]
+           gg = []
+           if 'Accept' in self.headers:
+               gg = [ x.strip() for x in self.headers['Accept'].split(';')]
+               afmt = gg[0] # just take first one; very simple
 
-           if fmt == "application/bson":
+           if afmt == "application/bson":
                jfmt = None
-               contentType = 'application/bson'
+               fmt = 'application/bson'
                theWriter = self.bsonWriter
                boundary = "_"  # trick the boundary logic
                
-           else:  # either json or ejson
+           elif afmt == "application/json" or afmt == "application/ejson":
                theWriter = mson.write
 
-               if fmt == "application/json":
+               if afmt == "application/json":
+                   fmt = afmt
                    jfmt = mson.PURE
 
-               if fmt == "application/ejson":
+               elif afmt == "application/ejson":
+                   fmt = afmt
                    jfmt = mson.MONGO
                    
                # json and ejson support boundary=[LF,CR]
@@ -227,11 +232,14 @@ class WebF:
                        if attr[0] == "boundary":
                            if attr[1] in ['LF','CR']:
                                boundary = "LF"
+                               fmt += "; boundary=LF"
                            else:
-                               print "unsupported json boundary" # TBD
+                               print("unsupported json boundary") # TBD
 
+           # else afmt is an unrecognized fmt; should do something about this
 
-           self.send_header('Content-type', ahdr)
+           self.send_header('Content-type', fmt)
+
 
            if self.server.parent.cors is not None:
               self.send_header('Access-Control-Allow-Origin', self.server.parent.cors)
@@ -304,7 +312,7 @@ class WebF:
                 restful = None
 
                 #  Basically, do a longest-first match...
-                for fname,v in sorted(xx.fmap.iteritems(), key=lambda (k,v): (len(k),k), reverse=True):
+                for fname,v in sorted(xx.fmap.iteritems(), key=lambda(k,v): (len(k),k), reverse=True):
                     lname = len(fname)
                     frag = prefunc[:lname]
                     #print "[%s] %d [%s] %d" % (fname,lname,frag,len(frag))
